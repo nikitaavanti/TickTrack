@@ -14,7 +14,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/TickTrack" "$APP/Contents/MacOS/TickTrack"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+
+# Номер сборки = число коммитов: растёт сам, вручную не трогаем. Версия для людей — в Support/Info.plist.
+BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+plutil -replace CFBundleVersion -string "$BUILD" "$APP/Contents/Info.plist"
+VERSION="$(plutil -extract CFBundleShortVersionString raw Support/Info.plist)"
 codesign --force --sign - "$APP"
 
-echo "Готово: $APP"
+echo "Готово: $APP (версия $VERSION, сборка $BUILD)"
 echo "Запуск: open $APP"

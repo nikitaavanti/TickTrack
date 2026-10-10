@@ -5,6 +5,7 @@
 - Техническое задание: [docs/SPEC.md](docs/SPEC.md)
 - Интерактивный прототип: [docs/prototype.html](docs/prototype.html), открывается в браузере
 - Решения и отступления от ТЗ: [docs/decisions.md](docs/decisions.md)
+- Изменения по версиям: [CHANGELOG.md](CHANGELOG.md)
 
 ## Требования
 
@@ -48,3 +49,17 @@ scripts/test.sh
 | `Support/Info.plist` | `LSUIElement`, идентификатор приложения, версия |
 
 Данные хранятся в `~/Library/Application Support/TickTrack/state.json`, настройки — в `UserDefaults`, токен — в Keychain.
+
+## Версии
+
+Версия по [SemVer](https://semver.org/lang/ru/): PATCH — исправления, MINOR — новые возможности, MAJOR — крупная веха (1.0.0 — когда пройдены критерии приёмки из ТЗ).
+
+- Версия для людей — `CFBundleShortVersionString` в [Support/Info.plist](Support/Info.plist). Между выпусками не меняется.
+- Номер сборки (`CFBundleVersion`) подставляет `scripts/build-app.sh`: это число коммитов, вручную не трогаем.
+
+Выпуск версии:
+
+1. Перенести изменения в [CHANGELOG.md](CHANGELOG.md) под новый номер и дату.
+2. Поменять `CFBundleShortVersionString` в `Support/Info.plist`.
+3. Закоммитить («Release 0.2.0»), поставить метку и отправить её: `git tag v0.2.0 && git push --tags`.
+4. Собрать `scripts/build-app.sh` из этого коммита.
