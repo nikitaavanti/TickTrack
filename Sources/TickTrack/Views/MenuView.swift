@@ -35,7 +35,7 @@ struct MenuView: View {
                 MenuRow(title: Text("Я забыл переключиться…")) { run(model.openReassign) }
             }
             if state.current != nil || state.status == .paused {
-                MenuRow(mark: "■", title: Text("Завершить рабочий день")) { run(model.endDay) }
+                MenuRow(mark: "■", title: Text("Завершить рабочий день")) { run { model.endDay() } }
             }
             if state.current != nil || state.status == .paused {
                 Divider().padding(.vertical, 4)
@@ -44,6 +44,11 @@ struct MenuView: View {
             MenuRow(title: Text("Списания за сегодня…")) { run { model.openLog() } }
             MenuRow(title: Text("Настройки…"), shortcut: "⌘,") { run(model.openSettings) }
                 .keyboardShortcut(",", modifiers: .command)
+            MenuRow(title: Text("Завершить TickTrack"), shortcut: "⌘Q") {
+                // Решение (спросить или выйти сразу) принимает applicationShouldTerminate.
+                run { NSApp.terminate(nil) }
+            }
+            .keyboardShortcut("q", modifiers: .command)
             Divider().padding(.vertical, 4)
             footer
         }

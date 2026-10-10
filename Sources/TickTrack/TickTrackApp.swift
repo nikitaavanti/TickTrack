@@ -35,6 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model?.save()
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        model?.shouldTerminate() ?? .terminateNow
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

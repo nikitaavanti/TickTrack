@@ -209,7 +209,10 @@ struct PlanView: View {
 /// «Списания за сегодня» и «Итог дня».
 struct LogView: View {
     let model: AppModel
+    var quitting = false
     let close: () -> Void
+
+    @State private var leaving = false
 
     @State private var editing: UUID?
     @State private var editIssue = ""
@@ -237,7 +240,20 @@ struct LogView: View {
             Text("Правка и удаление сразу меняют запись в YouTrack.").font(.caption).foregroundStyle(.secondary)
             HStack {
                 Spacer()
-                Button("Закрыть", action: close).keyboardShortcut(.cancelAction)
+                if quitting {
+                    if leaving {
+                        ProgressView().controlSize(.small)
+                        Text("Отправляем в YouTrack…").foregroundStyle(.secondary)
+                    }
+                    Button("Выйти") {
+                        leaving = true
+                        Task { await model.finishQuit() }
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(leaving)
+                } else {
+                    Button("Закрыть", action: close).keyboardShortcut(.cancelAction)
+                }
             }
         }
         .padding(20)

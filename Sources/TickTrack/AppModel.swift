@@ -70,6 +70,11 @@ final class AppModel {
     @ObservationIgnored private var isLocked = false
     @ObservationIgnored private var reminderSnoozedUntil = Date.distantPast
     @ObservationIgnored private var demoAPI: (any YouTrackAPI)?
+    /// Выход подтверждён: следующий `terminate` закрывает приложение без вопросов.
+    @ObservationIgnored var quitConfirmed = false
+    @ObservationIgnored var systemIsPoweringOff = false
+    /// Что введено в висящих карточках списания.
+    @ObservationIgnored var draftInputs: [UUID: DraftInput] = [:]
 
     init(settings: AppSettings = AppSettings()) {
         self.settings = settings
@@ -238,10 +243,10 @@ final class AppModel {
         apply { state, config in state.pause(at: Date(), config: config) }
     }
 
-    func endDay() {
+    func endDay(quitting: Bool = false) {
         apply { state, config in state.endDay(at: Date(), config: config) }
         reminder = nil
-        openLog(title: "Итог дня")
+        openLog(title: "Итог дня", quitting: quitting)
     }
 
     func startLater() {
@@ -296,12 +301,14 @@ final class AppModel {
 
     func commitDraft(_ draft: SegmentDraft, comment: String, type: WorkType) {
         state.commit(draft, comment: comment, type: type)
+        draftInputs.removeValue(forKey: draft.id)
         save()
         syncSoon()
     }
 
     func discardDraft(_ draft: SegmentDraft) {
         state.discardDraft(id: draft.id)
+        draftInputs.removeValue(forKey: draft.id)
         save()
         toast("Не списано", "\(draft.issueId) · \(Fmt.hm(draft.rawMinutes)) отброшено")
     }
@@ -453,6 +460,7 @@ final class AppModel {
                 }
             })
         }
+        on(workspace, NSWorkspace.willPowerOffNotification) { $0.systemIsPoweringOff = true }
         on(workspace, NSWorkspace.willSleepNotification) { $0.wentAway(); $0.isAsleep = true }
         on(workspace, NSWorkspace.screensDidSleepNotification) { $0.wentAway(); $0.isAsleep = true }
         on(workspace, NSWorkspace.didWakeNotification) { $0.isAsleep = false }

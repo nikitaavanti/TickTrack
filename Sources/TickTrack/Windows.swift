@@ -77,10 +77,11 @@ extension AppModel {
         }
     }
 
-    func openLog(title: String = "Списания за сегодня") {
+    /// `quitting` — «Итог дня» перед выходом: вместо «Закрыть» кнопка «Выйти».
+    func openLog(title: String = "Списания за сегодня", quitting: Bool = false) {
         closeMenu()
         windows.show("log", title: title) {
-            LogView(model: self, close: closer("log"))
+            LogView(model: self, quitting: quitting, close: closer("log"))
         }
     }
 

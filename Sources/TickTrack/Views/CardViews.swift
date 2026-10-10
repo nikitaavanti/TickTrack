@@ -88,7 +88,10 @@ struct WriteOffCard: View {
                 .onSubmit { finish(commit: true) }
                 .onExitCommand { finish(commit: false) }
                 .onChange(of: fieldFocused) { _, focused in if focused { holding = true } }
-                .onChange(of: text) { holding = true }
+                .onChange(of: text) {
+                    holding = true
+                    model.noteDraftInput(draft, comment: text, type: type)
+                }
             HStack {
                 Spacer()
                 Button("Не списывать") { finish(commit: false) }
