@@ -1,10 +1,19 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.2
 import PackageDescription
 
 let package = Package(
     name: "TickTrack",
-    platforms: [.macOS(.v14)],
+    defaultLocalization: "ru",
+    platforms: [.macOS(.v26)],
     targets: [
-        .executableTarget(name: "TickTrack", path: "Sources/TickTrack")
+        // Логика учёта, правила списания, очередь отправки и клиент YouTrack. Без UI, покрыто тестами.
+        .target(name: "TickTrackCore"),
+        // Приложение в строке меню: AppKit-обвязка и SwiftUI-экраны.
+        .executableTarget(
+            name: "TickTrack",
+            dependencies: ["TickTrackCore"],
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
+        .testTarget(name: "TickTrackCoreTests", dependencies: ["TickTrackCore"]),
     ]
 )
