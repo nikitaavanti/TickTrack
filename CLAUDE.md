@@ -1,6 +1,6 @@
 # TickTrack — памятка для Claude
 
-Трекер времени для YouTrack в строке меню macOS. Источник требований — `docs/SPEC.md`. Если ТЗ и `docs/prototype.html` расходятся, прав SPEC. Отступления от ТЗ записываются в `docs/decisions.md`, идеи сверх ТЗ — в `docs/ideas.md` (правила ведения — в начале файла).
+Трекер времени для YouTrack в строке меню macOS. Источник требований — `docs/SPEC.md`. Если ТЗ и `docs/prototype.html` расходятся, прав SPEC. Отступления от ТЗ записываются в `docs/decisions.md`, идеи сверх ТЗ — в `docs/ideas.md` по MoSCoW (правила ведения — в начале файла).
 
 ## Команды
 
