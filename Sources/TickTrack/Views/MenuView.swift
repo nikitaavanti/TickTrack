@@ -42,6 +42,7 @@ struct MenuView: View {
             }
             MenuRow(title: Text("План на день…")) { run { model.openPlan() } }
             MenuRow(title: Text("Списания за сегодня…")) { run { model.openLog() } }
+            MenuRow(title: Text("О программе TickTrack")) { run(model.openAbout) }
             MenuRow(title: Text("Настройки…"), shortcut: "⌘,") { run(model.openSettings) }
                 .keyboardShortcut(",", modifiers: .command)
             MenuRow(title: Text("Завершить TickTrack"), shortcut: "⌘Q") {

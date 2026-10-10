@@ -85,6 +85,13 @@ extension AppModel {
         }
     }
 
+    func openAbout() {
+        closeMenu()
+        windows.show("about", title: "О программе TickTrack") {
+            AboutView()
+        }
+    }
+
     func openSettings() {
         closeMenu()
         windows.show("settings", title: "Настройки") {

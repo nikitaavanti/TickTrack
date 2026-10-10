@@ -36,6 +36,7 @@ enum DebugSnapshots {
             model.idlePrompt = IdlePrompt(start: Date().addingTimeInterval(-20 * 60), end: Date(), issueId: "VEG-219")
             render(IdleReturnView(model: model, prompt: model.idlePrompt!, close: {}), "11-idle", folder)
             render(SettingsView(model: model, close: {}), "12-settings", folder)
+            render(AboutView(), "13-about", folder)
             NSApp.terminate(nil)
         }
         return true
