@@ -6,6 +6,7 @@
 - Интерактивный прототип: [docs/prototype.html](docs/prototype.html), открывается в браузере
 - Решения и отступления от ТЗ: [docs/decisions.md](docs/decisions.md)
 - Изменения по версиям: [CHANGELOG.md](CHANGELOG.md)
+- Идеи и предложения: [docs/ideas.md](docs/ideas.md)
 
 ## Требования
 
