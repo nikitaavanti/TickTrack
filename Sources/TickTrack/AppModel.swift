@@ -70,6 +70,8 @@ final class AppModel {
     var connection: ConnectionStatus = .unknown
     var inProgress: [Issue] = []
     var inProgressLoading = false
+    /// Задачи, которых нет в YouTrack или к которым нет доступа (по последней проверке).
+    var unavailableIssues: Set<String> = []
     var projects: [Project] = []
     /// Растёт при каждом открытии меню, чтобы меню открывалось в исходном виде.
     var menuSession = 0
@@ -85,6 +87,7 @@ final class AppModel {
     @ObservationIgnored private var lastSyncAttempt = Date.distantPast
     @ObservationIgnored private var lastActivitySave = Date.distantPast
     @ObservationIgnored private var inProgressLoadedAt = Date.distantPast
+    @ObservationIgnored var planIssuesRefreshedAt = Date.distantPast
     /// С какого момента пользователь не за компьютером (nil — за компьютером).
     @ObservationIgnored private var awaySince: Date?
     @ObservationIgnored private var isAsleep = false
@@ -157,6 +160,7 @@ final class AppModel {
             } : nil)
         } else {
             Task { await checkConnection() }
+            Task { await refreshPlanIssuesIfStale() }
             if needsPlan { openPlan() }
         }
     }

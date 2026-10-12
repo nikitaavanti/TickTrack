@@ -65,7 +65,7 @@ struct MorningView: View {
                         get: { !unchecked.contains(id) },
                         set: { if $0 { unchecked.remove(id) } else { unchecked.insert(id) } }
                     )) {
-                        IssueLine(id: id, title: model.title(of: id))
+                        IssueLine(id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
                     }
                     .toggleStyle(.checkbox)
                     .padding(.horizontal, 10).padding(.vertical, 6)
@@ -95,7 +95,7 @@ struct StartWorkView: View {
                         model.toast("Учёт начат", "\(id) · с \(Fmt.clock(Date()))")
                     } label: {
                         HStack {
-                            IssueLine(id: id, title: model.title(of: id))
+                            IssueLine(id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
                             Spacer()
                             Label("Начать", systemImage: "play.fill").font(.caption).foregroundStyle(.secondary)
                         }
@@ -162,12 +162,7 @@ struct PlanView: View {
             }
             Text("Добавить задачу: найдите её в YouTrack по ID или названию или возьмите из тех, что у вас в работе.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            if !previous.isEmpty {
-                suggestionRow("Вчера в плане:", previous.map { model.issue($0) ?? Issue(idReadable: $0, summary: "") })
-            }
-            if !suggestions.isEmpty {
-                suggestionRow("В работе у вас в YouTrack:", suggestions)
-            }
+            suggestionTable
             TextField("Найти задачу в YouTrack: ID или текст", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
@@ -194,7 +189,7 @@ struct PlanView: View {
     private func planRow(_ id: String, index: Int) -> some View {
         HStack {
             Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-            IssueLine(id: id, title: model.title(of: id))
+            IssueLine(id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
             Spacer()
             if let project = model.issue(id)?.projectName, !project.isEmpty {
                 Text(verbatim: project).font(.caption).foregroundStyle(.secondary)
@@ -222,12 +217,62 @@ struct PlanView: View {
         .onDrop(of: [.text], delegate: PlanDropDelegate(target: id, dragging: $dragging, model: model))
     }
 
-    private func suggestionRow(_ title: LocalizedStringKey, _ issues: [Issue]) -> some View {
-        FlowLayout(spacing: 6) {
-            Text(title).font(.callout).foregroundStyle(.secondary)
+    private var previousIssues: [Issue] {
+        previous.map { model.issue($0) ?? Issue(idReadable: $0, summary: "") }
+    }
+
+    /// Подсказки одной таблицей: вчерашний план и задачи «в работе». Длинный список прокручивается.
+    @ViewBuilder private var suggestionTable: some View {
+        let lines = (previous.isEmpty ? 0 : previous.count + 1) + (suggestions.isEmpty ? 0 : suggestions.count + 1)
+        if lines > 0 {
+            let table = VStack(spacing: 0) {
+                if !previous.isEmpty { suggestionGroup("Вчера в плане", previousIssues) }
+                if !suggestions.isEmpty {
+                    if !previous.isEmpty { Divider() }
+                    suggestionGroup("В работе у вас в YouTrack", suggestions)
+                }
+            }
+            BoxedList {
+                if lines > 7 {
+                    ScrollView { table }.frame(height: 210)
+                } else {
+                    table
+                }
+            }
+        }
+    }
+
+    private func suggestionGroup(_ title: LocalizedStringKey, _ issues: [Issue]) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                Spacer()
+                if issues.count > 1 {
+                    Button("Добавить все") { for issue in issues { model.addToPlan(issue) } }
+                        .buttonStyle(.link).font(.caption)
+                }
+            }
+            .padding(.horizontal, 10).padding(.top, 8).padding(.bottom, 4)
             ForEach(issues) { issue in
-                ChipButton(title: "+ " + issue.idReadable) { model.addToPlan(issue) }
-                    .help(issue.summary)
+                Divider()
+                Button {
+                    model.addToPlan(issue)
+                } label: {
+                    HStack {
+                        IssueLine(id: issue.idReadable, title: model.title(of: issue.idReadable), unavailable: model.unavailableIssues.contains(issue.idReadable))
+                        Spacer()
+                        if !issue.projectName.isEmpty {
+                            Text(verbatim: issue.projectName).font(.caption).foregroundStyle(.secondary)
+                                .padding(.horizontal, 7).padding(.vertical, 1)
+                                .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                        }
+                        Image(systemName: "plus.circle.fill").foregroundStyle(Color.accentColor)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Добавить в план")
             }
         }
     }

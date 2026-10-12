@@ -43,6 +43,8 @@ public enum YouTrackError: LocalizedError, Sendable, Equatable {
 public protocol YouTrackAPI: Sendable {
     func currentUser() async throws -> YouTrackUser
     func searchIssues(query: String, top: Int) async throws -> [Issue]
+    /// Задача по ID. `notFound` или `forbidden` — задачи нет или нет доступа к ней.
+    func issue(id: String) async throws -> Issue
     func projects() async throws -> [Project]
     func createIssue(projectId: String, summary: String, description: String) async throws -> Issue
     func assignToMe(issueId: String) async throws
@@ -81,6 +83,11 @@ public struct YouTrackClient: YouTrackAPI {
     public func searchIssues(query: String, top: Int) async throws -> [Issue] {
         let list: [IssueDTO] = try await get("api/issues", ["query": query, "fields": Self.issueFields, "$top": String(top)])
         return list.map(\.issue)
+    }
+
+    public func issue(id: String) async throws -> Issue {
+        let dto: IssueDTO = try await get("api/issues/\(id)", ["fields": Self.issueFields])
+        return dto.issue
     }
 
     public func projects() async throws -> [Project] {

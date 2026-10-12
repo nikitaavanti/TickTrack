@@ -49,6 +49,12 @@ actor DemoYouTrack: YouTrackAPI {
         return Array(issues.filter { $0.idReadable.lowercased().contains(q) || $0.summary.lowercased().contains(q) }.prefix(top))
     }
 
+    func issue(id: String) async throws -> Issue {
+        try await Task.sleep(for: .milliseconds(100))
+        guard let issue = issues.first(where: { $0.idReadable == id }) else { throw YouTrackError.notFound }
+        return issue
+    }
+
     func projects() async throws -> [Project] { projectList }
 
     func createIssue(projectId: String, summary: String, description: String) async throws -> Issue {

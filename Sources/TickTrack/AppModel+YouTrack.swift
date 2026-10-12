@@ -22,10 +22,51 @@ extension AppModel {
         }
     }
 
+    /// Обновляет названия и проекты задач из YouTrack: недостающие появляются, переименованные — освежаются.
+    /// Без связи молча оставляет то, что есть в кэше.
+    func refreshIssues(_ ids: [String]) async {
+        guard let api else { return }
+        var unique: [String] = []
+        for id in ids where !unique.contains(id) { unique.append(id) }
+        guard !unique.isEmpty else { return }
+        let results = await withTaskGroup(of: (String, Result<Issue, Error>).self) { group in
+            for id in unique {
+                group.addTask {
+                    do { return (id, .success(try await api.issue(id: id))) } catch { return (id, .failure(error)) }
+                }
+            }
+            var all: [(String, Result<Issue, Error>)] = []
+            for await result in group { all.append(result) }
+            return all
+        }
+        var found: [Issue] = []
+        for (id, result) in results {
+            switch result {
+            case .success(let issue):
+                found.append(issue)
+                unavailableIssues.remove(id)
+            case .failure(let error as YouTrackError) where error == .notFound || error == .forbidden:
+                unavailableIssues.insert(id)
+            case .failure:
+                break
+            }
+        }
+        if !found.isEmpty { mutateState { $0.remember(found) } }
+    }
+
+    /// Задачи плана при открытии меню и запуске — не чаще раза в 15 минут.
+    func refreshPlanIssuesIfStale() async {
+        guard Date().timeIntervalSince(planIssuesRefreshedAt) > 15 * 60 else { return }
+        planIssuesRefreshedAt = Date()
+        await refreshIssues(state.plan)
+    }
+
     /// Сброс кэшей после смены сервера или токена.
     func connectionSettingsChanged() {
         connection = .unknown
         clearSearchCache()
+        unavailableIssues = []
+        planIssuesRefreshedAt = .distantPast
     }
 
     /// Забирает мои списания за сегодня из YouTrack, чтобы учесть сделанные мимо TickTrack.

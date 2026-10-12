@@ -215,11 +215,17 @@ struct IssuePicker: View {
 struct IssueLine: View {
     let id: String
     let title: String
+    /// Задачи нет в YouTrack или к ней нет доступа: вместо названия — пояснение.
+    var unavailable = false
 
     var body: some View {
         HStack(spacing: 10) {
             Text(verbatim: id).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(.secondary).frame(width: 82, alignment: .leading)
-            Text(verbatim: title).lineLimit(1).truncationMode(.tail)
+            if unavailable {
+                Text("нет доступа в YouTrack").foregroundStyle(.secondary).lineLimit(1)
+            } else {
+                Text(verbatim: title).lineLimit(1).truncationMode(.tail)
+            }
         }
     }
 }

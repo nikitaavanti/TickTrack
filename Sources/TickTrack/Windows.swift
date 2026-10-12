@@ -54,6 +54,7 @@ extension AppModel {
         closeMenu()
         reminder = nil
         Task { await loadInProgress(force: true) }
+        Task { await refreshIssues(state.morningCarryOver) }
         windows.show("morning", title: "Доброе утро") {
             MorningView(model: self, close: closer("morning"))
         }
@@ -72,6 +73,7 @@ extension AppModel {
     /// `then` вызывается после закрытия окна плана: так «Собрать с нуля» и «Дополнить план…» ведут дальше.
     func openPlan(then next: (() -> Void)? = nil) {
         closeMenu()
+        Task { await refreshIssues(state.plan + state.previousPlanSuggestions) }
         windows.show("plan", title: "План на день", onClose: next) {
             PlanView(model: self, continues: next != nil, close: closer("plan"))
         }
