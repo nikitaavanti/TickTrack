@@ -149,6 +149,8 @@ struct IssueSearchResults: View {
     let query: String
     @Binding var results: [Issue]
     var limit = 8
+    /// Сколько результатов видно без прокрутки. `nil` — список растёт, сколько бы их ни было.
+    var visibleRows: Int?
     let onPick: (Issue) -> Void
     var onCreate: ((String) -> Void)?
 
@@ -164,12 +166,13 @@ struct IssueSearchResults: View {
                 Text("В YouTrack ничего не найдено. Проверьте ID или формулировку.")
                     .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 6)
             } else {
-                ForEach(results.prefix(limit)) { issue in
-                    MenuRow(
-                        mark: model.state.plan.contains(issue.idReadable) ? "•" : "",
-                        title: Text(verbatim: issue.summary),
-                        subtitle: issue.idReadable + " · " + issue.projectName + (model.isInProgress(issue.idReadable) ? " · в работе у вас" : "")
-                    ) { onPick(issue) }
+                let shown = Array(results.prefix(limit))
+                if let visibleRows, shown.count > visibleRows {
+                    // Половина следующей строки видна — понятно, что список прокручивается.
+                    ScrollView { rows(shown) }.frame(height: (CGFloat(visibleRows) + 0.5) * Self.rowHeight)
+                    if onCreate != nil { Divider().padding(.vertical, 2) }
+                } else {
+                    rows(shown)
                 }
             }
             if let onCreate, !trimmed.isEmpty {
@@ -191,6 +194,21 @@ struct IssueSearchResults: View {
             let found = await model.searchIssues(trimmed)
             guard !Task.isCancelled else { return }
             results = found
+        }
+    }
+
+    /// Высота строки с подписью в `MenuRow`.
+    private static let rowHeight: CGFloat = 38
+
+    private func rows(_ issues: [Issue]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(issues) { issue in
+                MenuRow(
+                    mark: model.state.plan.contains(issue.idReadable) ? "•" : "",
+                    title: Text(verbatim: issue.summary),
+                    subtitle: issue.idReadable + " · " + issue.projectName + (model.isInProgress(issue.idReadable) ? " · в работе у вас" : "")
+                ) { onPick(issue) }
+            }
         }
     }
 }

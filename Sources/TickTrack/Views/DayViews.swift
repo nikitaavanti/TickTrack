@@ -162,14 +162,17 @@ struct PlanView: View {
             }
             Text("Добавить задачу: найдите её в YouTrack по ID или названию или возьмите из тех, что у вас в работе.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            suggestionTable
+            // Пока идёт поиск, подсказки убираем: место нужно результатам, окно не растёт за край экрана.
+            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                suggestionTable
+            }
             TextField("Найти задачу в YouTrack: ID или текст", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
                 .onSubmit { if let first = results.first { add(first) } }
             // Результаты не показываются, пока поле пустое.
             if !query.trimmingCharacters(in: .whitespaces).isEmpty {
-                IssueSearchResults(model: model, query: query, results: $results, onPick: add) { text in
+                IssueSearchResults(model: model, query: query, results: $results, limit: 20, visibleRows: 5, onPick: add) { text in
                     model.openCreate(prefill: text, fromPlan: true)
                 }
                 .padding(4)

@@ -34,6 +34,11 @@ enum DebugSnapshots {
             model.mutateState { $0.previousPlan = ["ATL-1482", "ATL-1490", "ATL-1501", "LYR-902", "VEG-219", "ORG-3", "ATL-1999"] }
             await model.refreshIssues(model.state.plan + model.state.previousPlanSuggestions)
             render(PlanView(model: model, continues: false, close: {}), "8-plan", folder)
+            render(
+                IssueSearchResults(model: model, query: "демо", results: .constant(model.pickableIssues()), limit: 20, visibleRows: 5, onPick: { _ in }, onCreate: { _ in })
+                    .frame(width: 480),
+                "8b-plan-search", folder
+            )
             render(ReassignView(model: model, close: {}), "9-reassign", folder)
             render(CreateIssueView(model: model, prefill: "Созвон по бонусам", fromPlan: false, close: {}), "10-create", folder)
             model.idlePrompt = IdlePrompt(start: Date().addingTimeInterval(-20 * 60), end: Date(), issueId: "VEG-219")
