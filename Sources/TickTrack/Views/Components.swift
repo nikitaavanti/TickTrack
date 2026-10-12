@@ -234,3 +234,14 @@ struct BoxedList<Content: View>: View {
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.2)))
     }
 }
+
+/// «84 % нормы · ещё 1:15» или, с `showingNorm`, «84 % от нормы 8 ч · ещё 1:15».
+/// Когда норма набрана, остаток не показывается: «110 % нормы».
+@MainActor
+func normText(_ model: AppModel, showingNorm: Bool = false) -> Text {
+    let percent = showingNorm
+        ? Text("\(model.normPercentToday)\u{00A0}% от нормы \(model.settings.dailyNorm.hoursText)\u{00A0}ч")
+        : Text("\(model.normPercentToday)\u{00A0}% нормы")
+    guard model.normRemainingToday > 0 else { return percent }
+    return percent + Text(" · ещё ") + Text(verbatim: Fmt.hm(model.normRemainingToday))
+}

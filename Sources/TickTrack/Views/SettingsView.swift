@@ -39,6 +39,7 @@ struct SettingsView: View {
                     Picker("Тип работы по умолчанию", selection: $settings.defaultType) {
                         ForEach(WorkType.allCases) { Text(verbatim: $0.title).tag($0) }
                     }
+                    Stepper("Дневная норма \(settings.dailyNorm.hoursText) ч", value: $settings.dailyNormMinutes, in: 30...(16 * 60), step: 30)
                 }
                 Section("Вид и клавиши") {
                     Picker("В строке меню", selection: $settings.menuBarMode) {

@@ -174,10 +174,13 @@ struct MenuView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Text("Сегодня списано: ") + Text(verbatim: Fmt.hm(model.totalToday)).font(.system(size: 11.5, weight: .semibold, design: .monospaced))
-            Spacer()
-            Text("Открыть меню: ") + Text(verbatim: model.settings.hotKey.display).fontWeight(.semibold)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Сегодня списано: ") + Text(verbatim: Fmt.hm(model.totalToday)).font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                Spacer()
+                Text("Открыть меню: ") + Text(verbatim: model.settings.hotKey.display).fontWeight(.semibold)
+            }
+            normText(model)
         }
         .font(.system(size: 11.5))
         .foregroundStyle(.secondary)

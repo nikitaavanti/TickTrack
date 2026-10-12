@@ -216,6 +216,37 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
     }
 }
 
+@Suite struct DailyNormTests {
+    @Test func percentIsRoundedDown() {
+        let norm = DailyNorm(minutes: 8 * 60)
+        #expect(norm.percent(logged: 6 * 60 + 45) == 84)
+        #expect(norm.percent(logged: 8 * 60 - 1) == 99)
+        #expect(norm.percent(logged: 8 * 60) == 100)
+        #expect(norm.percent(logged: 0) == 0)
+    }
+
+    @Test func overNormIsShownAsIs() {
+        let norm = DailyNorm(minutes: 8 * 60)
+        #expect(norm.percent(logged: 8 * 60 + 48) == 110)
+        #expect(norm.remaining(logged: 8 * 60 + 48) == 0)
+    }
+
+    @Test func remainingUntilNorm() {
+        #expect(DailyNorm(minutes: 8 * 60).remaining(logged: 6 * 60 + 45) == 75)
+    }
+
+    @Test func halfHourNorm() {
+        let norm = DailyNorm(minutes: 7 * 60 + 30)
+        #expect(norm.hoursText == "7,5")
+        #expect(DailyNorm(minutes: 8 * 60).hoursText == "8")
+        #expect(norm.percent(logged: 7 * 60 + 30) == 100)
+    }
+
+    @Test func normIsNeverZero() {
+        #expect(DailyNorm(minutes: 0).minutes == 30)
+    }
+}
+
 @Suite struct ExternalWorkItemsTests {
     private let today = at(12, 0)
     private var todayDate: Int64 { TimeMath.youTrackDate(for: today, calendar: calendar) }

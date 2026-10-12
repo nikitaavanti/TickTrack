@@ -50,6 +50,8 @@ final class AppSettings {
     var cardEnabled: Bool { didSet { defaults.set(cardEnabled, forKey: Key.cardEnabled) } }
     var cardSeconds: Int { didSet { defaults.set(cardSeconds, forKey: Key.cardSeconds) } }
     var defaultType: WorkType { didSet { defaults.set(defaultType.rawValue, forKey: Key.defaultType) } }
+    /// Дневная норма в минутах, шаг — полчаса.
+    var dailyNormMinutes: Int { didSet { defaults.set(dailyNormMinutes, forKey: Key.dailyNormMinutes) } }
 
     var menuBarMode: MenuBarTitleMode { didSet { defaults.set(menuBarMode.rawValue, forKey: Key.menuBarMode) } }
     var hotKey: HotKeyShortcut {
@@ -72,6 +74,7 @@ final class AppSettings {
             Key.cardEnabled: true,
             Key.cardSeconds: 15,
             Key.defaultType: WorkType.analysis.rawValue,
+            Key.dailyNormMinutes: 8 * 60,
             Key.menuBarMode: MenuBarTitleMode.idOnly.rawValue,
             Key.launchAtLogin: true,
         ])
@@ -89,6 +92,7 @@ final class AppSettings {
         cardEnabled = defaults.bool(forKey: Key.cardEnabled)
         cardSeconds = max(5, defaults.integer(forKey: Key.cardSeconds))
         defaultType = WorkType(rawValue: defaults.string(forKey: Key.defaultType) ?? "") ?? .analysis
+        dailyNormMinutes = DailyNorm(minutes: defaults.integer(forKey: Key.dailyNormMinutes)).minutes
         menuBarMode = MenuBarTitleMode(rawValue: defaults.string(forKey: Key.menuBarMode) ?? "") ?? .idOnly
         hotKey = defaults.data(forKey: Key.hotKey).flatMap { try? JSONDecoder().decode(HotKeyShortcut.self, from: $0) } ?? .standard
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
@@ -97,6 +101,8 @@ final class AppSettings {
     var rules: WriteOffRules {
         WriteOffRules(roundUpToFive: roundUpToFive, minimumMinutes: minimumMinutes)
     }
+
+    var dailyNorm: DailyNorm { DailyNorm(minutes: dailyNormMinutes) }
 
     var isConfigured: Bool {
         !serverURL.trimmingCharacters(in: .whitespaces).isEmpty && !token.trimmingCharacters(in: .whitespaces).isEmpty
@@ -117,6 +123,7 @@ final class AppSettings {
         static let cardEnabled = "cardEnabled"
         static let cardSeconds = "cardSeconds"
         static let defaultType = "defaultType"
+        static let dailyNormMinutes = "dailyNormMinutes"
         static let menuBarMode = "menuBarMode"
         static let hotKey = "hotKey"
         static let launchAtLogin = "launchAtLogin"

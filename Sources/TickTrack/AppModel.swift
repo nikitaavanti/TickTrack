@@ -212,6 +212,10 @@ final class AppModel {
 
     var totalToday: Int { state.totalMinutes(on: now, calendar: calendar) }
 
+    /// Процент нормы и остаток — по списанному, без идущего отрезка.
+    var normPercentToday: Int { settings.dailyNorm.percent(logged: totalToday) }
+    var normRemainingToday: Int { settings.dailyNorm.remaining(logged: totalToday) }
+
     /// Сколько по задаче сегодня: списано плюс идущий отрезок.
     func spentToday(_ id: String) -> Int {
         state.loggedMinutes(issueId: id, on: now, calendar: calendar) + (state.current?.issueId == id ? elapsedMinutes : 0)

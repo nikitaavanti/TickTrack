@@ -236,6 +236,7 @@ struct LogView: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("Итого списано").foregroundStyle(.secondary)
                 Text(verbatim: Fmt.hm(model.totalToday)).font(.system(size: 24, weight: .semibold, design: .monospaced))
+                normText(model, showingNorm: true).foregroundStyle(.secondary)
             }
             Text("Правка и удаление сразу меняют запись в YouTrack.").font(.caption).foregroundStyle(.secondary)
             HStack {

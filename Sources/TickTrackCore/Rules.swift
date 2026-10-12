@@ -58,6 +58,31 @@ public enum TimeMath {
     }
 }
 
+/// Дневная норма списаний.
+public struct DailyNorm: Equatable, Sendable {
+    /// Норма в минутах, шаг — полчаса.
+    public var minutes: Int
+
+    public init(minutes: Int) {
+        self.minutes = max(30, minutes)
+    }
+
+    /// Сколько процентов нормы списано. Округляется вниз: 100 % — только когда норма набрана.
+    public func percent(logged: Int) -> Int {
+        max(0, logged) * 100 / minutes
+    }
+
+    /// Сколько осталось до нормы, 0 — если набрана.
+    public func remaining(logged: Int) -> Int {
+        max(0, minutes - logged)
+    }
+
+    /// Норма в часах: «8», «7,5».
+    public var hoursText: String {
+        "\(minutes / 60)" + (minutes % 60 == 0 ? "" : ",\(minutes % 60 * 10 / 60)")
+    }
+}
+
 /// Комментарий списания с типом работы в виде приставки.
 public enum CommentText {
     public static func initial(for type: WorkType) -> String {
