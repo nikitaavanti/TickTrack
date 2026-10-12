@@ -99,6 +99,8 @@ final class AppModel {
     @ObservationIgnored var systemIsPoweringOff = false
     /// Что введено в висящих карточках списания.
     @ObservationIgnored var draftInputs: [UUID: DraftInput] = [:]
+    /// Карточка по задаче, на которой завершили день: «Итог дня» откроется, когда по ней решат.
+    @ObservationIgnored private var dayEndDraft: (id: UUID, quitting: Bool)?
     /// Id текущего пользователя YouTrack: по нему забираем свои списания, сделанные напрямую в YouTrack.
     @ObservationIgnored var currentUserId: String?
     @ObservationIgnored var lastExternalRefresh = Date.distantPast
@@ -287,10 +289,29 @@ final class AppModel {
         apply { state, config in state.pause(at: Date(), config: config) }
     }
 
+    /// Сначала карточка по активной задаче, потом «Итог дня» — чтобы в итоге было и последнее списание.
+    /// Если карточки нет (отрезок короткий, карточки выключены, учёт не шёл), итог открывается сразу.
     func endDay(quitting: Bool = false) {
+        let before = Set(state.drafts.map(\.id))
         apply { state, config in state.endDay(at: Date(), config: config) }
         reminder = nil
+        closeMenu()
+        if let draft = state.drafts.last, !before.contains(draft.id) {
+            dayEndDraft = (draft.id, quitting)
+        } else {
+            openDaySummary(quitting: quitting)
+        }
+    }
+
+    private func openDaySummary(quitting: Bool) {
+        dayEndDraft = nil
         openLog(title: "Итог дня", quitting: quitting)
+    }
+
+    /// По карточке последней задачи решили (списали, отказались или она ушла сама) — показываем итог.
+    private func draftResolved(_ draft: SegmentDraft) {
+        guard let pending = dayEndDraft, pending.id == draft.id else { return }
+        openDaySummary(quitting: pending.quitting)
     }
 
     func startLater() {
@@ -353,6 +374,7 @@ final class AppModel {
         draftInputs.removeValue(forKey: draft.id)
         save()
         syncSoon()
+        draftResolved(draft)
     }
 
     func discardDraft(_ draft: SegmentDraft) {
@@ -360,6 +382,7 @@ final class AppModel {
         draftInputs.removeValue(forKey: draft.id)
         save()
         toast("Не списано", "\(draft.issueId) · \(Fmt.hm(draft.rawMinutes)) отброшено")
+        draftResolved(draft)
     }
 
     // MARK: - Списания за сегодня
