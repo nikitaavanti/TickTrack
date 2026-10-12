@@ -50,6 +50,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     func open() {
         model.menuSession += 1
+        Task { [model] in await model.refreshExternal() }
         panel.setFrame(frame(height: contentHeight), display: true)
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)

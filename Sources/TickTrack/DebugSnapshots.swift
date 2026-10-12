@@ -29,6 +29,7 @@ enum DebugSnapshots {
             await model.sync()
             model.toast("Не списано", "ORG-3 · 1 мин, это короче 2 мин")
             render(CardStackView(model: model), "6-toasts", folder)
+            await model.refreshExternal(force: true)
             render(LogView(model: model, close: {}), "7-log", folder)
             render(PlanView(model: model, continues: true, close: {}), "8-plan", folder)
             render(ReassignView(model: model, close: {}), "9-reassign", folder)

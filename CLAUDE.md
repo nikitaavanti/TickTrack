@@ -19,6 +19,7 @@ Xcode не установлен, есть только Command Line Tools (Swift
 ## Устройство
 
 - `TickTrackCore` — чистая логика без UI. Любое правило учёта (отрезки, округление, простой, перенос, очередь) пишется здесь как метод `TrackerState` и покрывается тестом.
+- Новые поля `TrackerState` объявлять Optional (или писать свой `init(from:)`): синтезированный Decodable падает на отсутствующем ключе, и старый `state.json` сбросится вместе с учётом. Пример — `storedExternal`, тест — `stateSavedBeforeExternalItemsStillLoads`.
 - `AppModel` (`@Observable`) — время, система (простой, сон, блокировка), YouTrack, окна. Менять `state` только через методы модели или `mutateState`, после изменения состояние сохраняется.
 - Таргет приложения собирается с `defaultIsolation(MainActor)`.
 - Меню — своя `NSPanel` (`MenuBarController`), а не `MenuBarExtra`; карточки списания — `CardPanelController`. Обе панели неактивирующиеся.

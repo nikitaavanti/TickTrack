@@ -49,6 +49,8 @@ public protocol YouTrackAPI: Sendable {
     func createWorkItem(issueId: String, minutes: Int, text: String, date: Int64) async throws -> String
     func updateWorkItem(issueId: String, workItemId: String, minutes: Int, text: String, date: Int64) async throws
     func deleteWorkItem(issueId: String, workItemId: String) async throws
+    /// Списания автора за день `day` (`YYYY-MM-DD`) и задачи, к которым они относятся.
+    func workItems(authorId: String, day: String) async throws -> (items: [ExternalWorkItem], issues: [Issue])
 }
 
 /// REST-клиент YouTrack с постоянным токеном.
@@ -114,6 +116,21 @@ public struct YouTrackClient: YouTrackAPI {
 
     public func deleteWorkItem(issueId: String, workItemId: String) async throws {
         _ = try await send("DELETE", "api/issues/\(issueId)/timeTracking/workItems/\(workItemId)", [:], body: nil)
+    }
+
+    public func workItems(authorId: String, day: String) async throws -> (items: [ExternalWorkItem], issues: [Issue]) {
+        let list: [WorkItemDTO] = try await get("api/workItems", [
+            "author": authorId, "startDate": day, "endDate": day, "$top": "500",
+            "fields": "id,date,created,text,duration(minutes),issue(\(Self.issueFields))",
+        ])
+        let items = list.compactMap { dto -> ExternalWorkItem? in
+            guard let issue = dto.issue, let date = dto.date else { return nil }
+            return ExternalWorkItem(
+                id: dto.id, issueId: issue.idReadable, minutes: dto.duration?.minutes ?? 0, text: dto.text ?? "",
+                date: date, created: dto.created.map { Date(timeIntervalSince1970: Double($0) / 1000) }
+            )
+        }
+        return (items, list.compactMap { $0.issue?.issue })
     }
 
     // MARK: - Транспорт
@@ -186,6 +203,16 @@ private struct ProjectDTO: Decodable {
     var project: Project {
         Project(id: id, name: name ?? shortName ?? id, shortName: shortName ?? "")
     }
+}
+
+private struct WorkItemDTO: Decodable {
+    struct Duration: Decodable { let minutes: Int? }
+    let id: String
+    let date: Int64?
+    let created: Int64?
+    let text: String?
+    let duration: Duration?
+    let issue: IssueDTO?
 }
 
 private struct IssueDTO: Decodable {

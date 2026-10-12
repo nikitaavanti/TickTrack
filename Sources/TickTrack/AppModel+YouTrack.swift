@@ -12,9 +12,11 @@ extension AppModel {
         do {
             let user = try await api.currentUser()
             connection = .connected(user.fullName ?? user.login)
+            currentUserId = user.id
             // Связь есть: отправляем очередь и подтягиваем задачи «в работе».
             await sync()
             await loadInProgress(force: true)
+            await refreshExternal(force: true)
         } catch {
             connection = .failed(error.localizedDescription)
         }
@@ -24,6 +26,28 @@ extension AppModel {
     func connectionSettingsChanged() {
         connection = .unknown
         clearSearchCache()
+    }
+
+    /// Забирает мои списания за сегодня из YouTrack, чтобы учесть сделанные мимо TickTrack.
+    /// Без связи молча оставляет то, что было загружено раньше.
+    func refreshExternal(force: Bool = false) async {
+        guard let api, force || Date().timeIntervalSince(lastExternalRefresh) > 30 else { return }
+        lastExternalRefresh = Date()
+        let today = Date()
+        let date = TimeMath.youTrackDate(for: today, calendar: calendar)
+        let day = calendar.dateComponents([.year, .month, .day], from: today)
+        let dayString = String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
+        do {
+            if currentUserId == nil { currentUserId = try await api.currentUser().id }
+            guard let userId = currentUserId else { return }
+            let result = try await api.workItems(authorId: userId, day: dayString)
+            mutateState {
+                $0.remember(result.issues)
+                $0.replaceExternal(result.items.filter { $0.date == date }, forDate: date)
+            }
+        } catch {
+            // Не мешаем работе: покажем то, что уже знаем, и попробуем позже.
+        }
     }
 
     func loadInProgress(force: Bool = false) async {

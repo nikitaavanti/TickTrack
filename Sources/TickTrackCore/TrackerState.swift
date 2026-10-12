@@ -54,6 +54,14 @@ public struct TrackerState: Codable, Sendable {
     /// С какого момента учёт не идёт (для напоминания о забытом старте).
     public var untrackedSince: Date?
     public var lastAutoMorningDay: Date?
+    /// Списания из YouTrack. Optional — чтобы читались файлы состояния, сохранённые до появления поля
+    /// (синтезированный Decodable не подставляет значения по умолчанию для отсутствующих ключей).
+    private var storedExternal: [ExternalWorkItem]?
+
+    public var external: [ExternalWorkItem] {
+        get { storedExternal ?? [] }
+        set { storedExternal = newValue }
+    }
 
     public init() {}
 
@@ -89,12 +97,22 @@ public struct TrackerState: Codable, Sendable {
             .sorted { $0.end > $1.end }
     }
 
+    /// Списания из YouTrack за день без тех, что сделал сам TickTrack или удалил и ещё не отправил удаление.
+    public func externalItems(on day: Date, calendar: Calendar) -> [ExternalWorkItem] {
+        let date = TimeMath.youTrackDate(for: day, calendar: calendar)
+        let known = Set(entries.compactMap(\.workItemId)).union(deletions.map(\.workItemId))
+        return external.filter { $0.date == date && !known.contains($0.id) }
+    }
+
+    /// Своё и сделанное напрямую в YouTrack.
     public func loggedMinutes(issueId: String, on day: Date, calendar: Calendar) -> Int {
         entries(on: day, calendar: calendar).filter { $0.issueId == issueId }.reduce(0) { $0 + $1.minutes }
+            + externalItems(on: day, calendar: calendar).filter { $0.issueId == issueId }.reduce(0) { $0 + $1.minutes }
     }
 
     public func totalMinutes(on day: Date, calendar: Calendar) -> Int {
         entries(on: day, calendar: calendar).reduce(0) { $0 + $1.minutes }
+            + externalItems(on: day, calendar: calendar).reduce(0) { $0 + $1.minutes }
     }
 
     public var hasPendingSync: Bool {
@@ -312,9 +330,16 @@ public struct TrackerState: Codable, Sendable {
         deletions[index].lastError = message
     }
 
+    /// Свежий список моих списаний из YouTrack за день `date` (мс) заменяет прежний за этот день.
+    public mutating func replaceExternal(_ items: [ExternalWorkItem], forDate date: Int64) {
+        external = external.filter { $0.date != date } + items
+    }
+
     /// Убирает отправленные записи старше `days` дней.
     public mutating func prune(keepingDays days: Int, now: Date, calendar: Calendar) {
         guard let cutoff = calendar.date(byAdding: .day, value: -days, to: calendar.startOfDay(for: now)) else { return }
         entries.removeAll { $0.sync == .synced && $0.start < cutoff }
+        let oldest = TimeMath.youTrackDate(for: cutoff, calendar: calendar)
+        external.removeAll { $0.date < oldest }
     }
 }

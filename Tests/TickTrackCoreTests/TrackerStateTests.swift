@@ -215,3 +215,58 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         try? FileManager.default.removeItem(at: url)
     }
 }
+
+@Suite struct ExternalWorkItemsTests {
+    private let today = at(12, 0)
+    private var todayDate: Int64 { TimeMath.youTrackDate(for: today, calendar: calendar) }
+
+    @Test func externalItemsCountInTotals() {
+        var state = TrackerState()
+        let draft = SegmentDraft(issueId: "A-1", start: at(10, 0), end: at(10, 42), rawMinutes: 42, minutes: 45, suggestedType: .analysis)
+        state.commit(draft, comment: "Анализ", type: .analysis)
+        state.replaceExternal([ExternalWorkItem(id: "yt1", issueId: "A-1", minutes: 30, text: "Созвон", date: todayDate, created: nil)], forDate: todayDate)
+        #expect(state.totalMinutes(on: today, calendar: calendar) == 75)
+        #expect(state.loggedMinutes(issueId: "A-1", on: today, calendar: calendar) == 75)
+    }
+
+    @Test func ownWorkItemsAreNotCountedTwice() {
+        var state = TrackerState()
+        let draft = SegmentDraft(issueId: "A-1", start: at(10, 0), end: at(10, 42), rawMinutes: 42, minutes: 45, suggestedType: .analysis)
+        let entry = state.commit(draft, comment: "Анализ", type: .analysis)
+        state.markCreated(entryId: entry.id, workItemId: "w1", issueId: "A-1", revision: 0)
+        // YouTrack вернул в том числе списание, которое сделал сам TickTrack.
+        state.replaceExternal([ExternalWorkItem(id: "w1", issueId: "A-1", minutes: 45, text: "Анализ", date: todayDate, created: nil)], forDate: todayDate)
+        #expect(state.externalItems(on: today, calendar: calendar).isEmpty)
+        #expect(state.totalMinutes(on: today, calendar: calendar) == 45)
+    }
+
+    @Test func locallyDeletedItemIsHiddenUntilServerConfirms() {
+        var state = TrackerState()
+        let draft = SegmentDraft(issueId: "A-1", start: at(10, 0), end: at(10, 42), rawMinutes: 42, minutes: 45, suggestedType: .analysis)
+        let entry = state.commit(draft, comment: "Анализ", type: .analysis)
+        state.markCreated(entryId: entry.id, workItemId: "w1", issueId: "A-1", revision: 0)
+        state.deleteEntry(id: entry.id)
+        state.replaceExternal([ExternalWorkItem(id: "w1", issueId: "A-1", minutes: 45, text: "Анализ", date: todayDate, created: nil)], forDate: todayDate)
+        #expect(state.totalMinutes(on: today, calendar: calendar) == 0)
+    }
+
+    @Test func otherDaysAreIgnored() {
+        var state = TrackerState()
+        let yesterday = TimeMath.youTrackDate(for: at(12, 0, day: 11), calendar: calendar)
+        state.replaceExternal([ExternalWorkItem(id: "yt1", issueId: "A-1", minutes: 30, text: "", date: yesterday, created: nil)], forDate: yesterday)
+        #expect(state.totalMinutes(on: today, calendar: calendar) == 0)
+    }
+
+    /// Файл состояния из версии без списаний из YouTrack должен читаться, а не сбрасываться.
+    @Test func stateSavedBeforeExternalItemsStillLoads() throws {
+        var state = TrackerState()
+        state.plan = ["A-1"]
+        let data = try JSONEncoder().encode(state)
+        var json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json.removeValue(forKey: "storedExternal")
+        let old = try JSONSerialization.data(withJSONObject: json)
+        let loaded = try JSONDecoder().decode(TrackerState.self, from: old)
+        #expect(loaded.plan == ["A-1"])
+        #expect(loaded.external.isEmpty)
+    }
+}

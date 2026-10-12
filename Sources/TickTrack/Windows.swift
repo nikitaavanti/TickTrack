@@ -80,6 +80,7 @@ extension AppModel {
     /// `quitting` — «Итог дня» перед выходом: вместо «Закрыть» кнопка «Выйти».
     func openLog(title: String = "Списания за сегодня", quitting: Bool = false) {
         closeMenu()
+        Task { await refreshExternal(force: true) }
         windows.show("log", title: title) {
             LogView(model: self, quitting: quitting, close: closer("log"))
         }

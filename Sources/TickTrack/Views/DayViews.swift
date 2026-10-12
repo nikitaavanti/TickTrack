@@ -220,7 +220,7 @@ struct LogView: View {
     @State private var editComment = ""
 
     var body: some View {
-        let entries = model.todayEntries
+        let entries = model.todayRows
         VStack(alignment: .leading, spacing: 12) {
             if entries.isEmpty {
                 Text("Сегодня ещё ничего не списано.").foregroundStyle(.secondary)
@@ -260,7 +260,7 @@ struct LogView: View {
         .frame(width: 560)
     }
 
-    private func rows(_ entries: [LogEntry]) -> some View {
+    private func rows(_ entries: [LogRow]) -> some View {
         VStack(spacing: 0) {
             HStack {
                 Text("Конец").frame(width: 50, alignment: .leading)
@@ -271,11 +271,16 @@ struct LogView: View {
             .font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
             .padding(.trailing, 80).padding(.bottom, 4)
             Divider()
-            ForEach(entries) { entry in
-                if editing == entry.id {
-                    editor(entry)
-                } else {
-                    row(entry)
+            ForEach(entries) { item in
+                switch item {
+                case .local(let entry):
+                    if editing == entry.id {
+                        editor(entry)
+                    } else {
+                        row(entry)
+                    }
+                case .external(let external):
+                    externalRow(external)
                 }
                 Divider()
             }
@@ -299,6 +304,25 @@ struct LogView: View {
             Spacer()
             Text(verbatim: Fmt.hm(entry.minutes)).font(.system(size: 12.5, design: .monospaced))
             Button("Изменить") { beginEdit(entry) }.buttonStyle(.link).frame(width: 70, alignment: .trailing)
+        }
+        .padding(.vertical, 6)
+    }
+
+    /// Списание, сделанное прямо в YouTrack: только просмотр, править его пока можно в самом YouTrack.
+    private func externalRow(_ item: ExternalWorkItem) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(verbatim: "—").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: item.issueId).font(.system(size: 11.5, design: .monospaced))
+                if !item.text.isEmpty {
+                    Text(verbatim: item.text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer()
+            Text(verbatim: Fmt.hm(item.minutes)).font(.system(size: 12.5, design: .monospaced))
+            Text("из YouTrack").font(.caption).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
+                .help("Списано напрямую в YouTrack. Изменить или удалить его можно там.")
         }
         .padding(.vertical, 6)
     }

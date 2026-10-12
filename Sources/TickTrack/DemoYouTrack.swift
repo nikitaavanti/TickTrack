@@ -6,7 +6,7 @@ import TickTrackCore
 /// Только в отладочной сборке — в релиз тестовые данные не попадают.
 actor DemoYouTrack: YouTrackAPI {
     private var issues: [Issue]
-    private var workItems: [String: (issueId: String, minutes: Int, text: String)] = [:]
+    private var workItems: [String: (issueId: String, minutes: Int, text: String, date: Int64)] = [:]
     private let projectList: [Project]
 
     init() {
@@ -31,6 +31,9 @@ actor DemoYouTrack: YouTrackAPI {
             issue("ORG-3", "Встречи и внутренние созвоны", 3),
             issue("ORG-7", "Планирование спринта", 3),
         ]
+        // Списание, сделанное «прямо в YouTrack», чтобы было видно, как такие записи показываются.
+        let today = TimeMath.youTrackDate(for: Date(), calendar: .current)
+        workItems["demo-external"] = ("ORG-7", 30, "Созвон: планирование спринта", today)
     }
 
     func currentUser() async throws -> YouTrackUser {
@@ -60,17 +63,24 @@ actor DemoYouTrack: YouTrackAPI {
 
     func createWorkItem(issueId: String, minutes: Int, text: String, date: Int64) async throws -> String {
         let id = UUID().uuidString
-        workItems[id] = (issueId, minutes, text)
+        workItems[id] = (issueId, minutes, text, date)
         return id
     }
 
     func updateWorkItem(issueId: String, workItemId: String, minutes: Int, text: String, date: Int64) async throws {
         guard workItems[workItemId] != nil else { throw YouTrackError.notFound }
-        workItems[workItemId] = (issueId, minutes, text)
+        workItems[workItemId] = (issueId, minutes, text, date)
     }
 
     func deleteWorkItem(issueId: String, workItemId: String) async throws {
         workItems.removeValue(forKey: workItemId)
+    }
+
+    func workItems(authorId: String, day: String) async throws -> (items: [ExternalWorkItem], issues: [Issue]) {
+        let items = workItems.map { id, item in
+            ExternalWorkItem(id: id, issueId: item.issueId, minutes: item.minutes, text: item.text, date: item.date, created: nil)
+        }
+        return (items, issues.filter { issue in items.contains { $0.issueId == issue.idReadable } })
     }
 }
 #endif

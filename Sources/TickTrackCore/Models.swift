@@ -85,6 +85,28 @@ public struct LogEntry: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+/// Списание, которое есть в YouTrack, но сделано не через TickTrack (например, прямо в YouTrack).
+public struct ExternalWorkItem: Codable, Hashable, Identifiable, Sendable {
+    /// `id` work item в YouTrack.
+    public var id: String
+    public var issueId: String
+    public var minutes: Int
+    public var text: String
+    /// Поле `date` work item: полночь UTC дня списания, мс.
+    public var date: Int64
+    /// Когда списание создано в YouTrack. Времени начала и конца у таких записей нет.
+    public var created: Date?
+
+    public init(id: String, issueId: String, minutes: Int, text: String, date: Int64, created: Date?) {
+        self.id = id
+        self.issueId = issueId
+        self.minutes = minutes
+        self.text = text
+        self.date = date
+        self.created = created
+    }
+}
+
 /// Work item, который нужно удалить в YouTrack (после удаления записи или переноса на другую задачу).
 public struct PendingDeletion: Codable, Hashable, Identifiable, Sendable {
     public var id = UUID()

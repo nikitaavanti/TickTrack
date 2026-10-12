@@ -26,6 +26,27 @@ struct Reminder: Equatable {
     var issueId: String?
 }
 
+/// Строка «Списаний за сегодня».
+enum LogRow: Identifiable {
+    case local(LogEntry)
+    case external(ExternalWorkItem)
+
+    var id: String {
+        switch self {
+        case .local(let entry): entry.id.uuidString
+        case .external(let item): "yt-" + item.id
+        }
+    }
+
+    /// У списаний из YouTrack нет времени окончания — сортируем их по времени создания.
+    var sortDate: Date {
+        switch self {
+        case .local(let entry): entry.end
+        case .external(let item): item.created ?? .distantPast
+        }
+    }
+}
+
 enum ConnectionStatus: Equatable {
     case unknown
     case checking
@@ -75,6 +96,9 @@ final class AppModel {
     @ObservationIgnored var systemIsPoweringOff = false
     /// Что введено в висящих карточках списания.
     @ObservationIgnored var draftInputs: [UUID: DraftInput] = [:]
+    /// Id текущего пользователя YouTrack: по нему забираем свои списания, сделанные напрямую в YouTrack.
+    @ObservationIgnored var currentUserId: String?
+    @ObservationIgnored var lastExternalRefresh = Date.distantPast
 
     init(settings: AppSettings = AppSettings()) {
         self.settings = settings
@@ -178,6 +202,13 @@ final class AppModel {
     var billableNow: Int { settings.rules.billableMinutes(raw: elapsedMinutes) }
 
     var todayEntries: [LogEntry] { state.entries(on: now, calendar: calendar) }
+
+    /// «Списания за сегодня»: свои и сделанные напрямую в YouTrack, новые сверху.
+    var todayRows: [LogRow] {
+        let local = todayEntries.map(LogRow.local)
+        let external = state.externalItems(on: now, calendar: calendar).map(LogRow.external)
+        return (local + external).sorted { $0.sortDate > $1.sortDate }
+    }
 
     var totalToday: Int { state.totalMinutes(on: now, calendar: calendar) }
 
@@ -343,6 +374,7 @@ final class AppModel {
         checkReminder()
         checkMorning()
         if state.hasPendingSync, now.timeIntervalSince(lastSyncAttempt) > 30 { syncSoon() }
+        if now.timeIntervalSince(lastExternalRefresh) > 5 * 60 { Task { await refreshExternal() } }
     }
 
     private func checkActivity() {
