@@ -93,9 +93,10 @@ extension AppModel {
         }
     }
 
-    func openSettings() {
+    /// `then` вызывается после закрытия настроек: при первом запуске следом открывается «План на день».
+    func openSettings(then next: (() -> Void)? = nil) {
         closeMenu()
-        windows.show("settings", title: "Настройки") {
+        windows.show("settings", title: "Настройки", onClose: next) {
             SettingsView(model: self, close: closer("settings"))
         }
     }

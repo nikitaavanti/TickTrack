@@ -133,6 +133,19 @@ public struct TrackerState: Codable, Sendable {
         plan.removeAll { $0 == issueId }
     }
 
+    /// Перетаскивание в «Плане на день»: задача встаёт на место `target`, остальные сдвигаются.
+    /// Порядок задаёт цифры 1–9 в меню.
+    public mutating func movePlanItem(_ issueId: String, to target: String) {
+        guard issueId != target, let from = plan.firstIndex(of: issueId), let to = plan.firstIndex(of: target) else { return }
+        plan.remove(at: from)
+        plan.insert(issueId, at: to)
+    }
+
+    /// Задачи из плана последнего рабочего дня, которых ещё нет в плане.
+    public var previousPlanSuggestions: [String] {
+        previousPlan.filter { !plan.contains($0) }
+    }
+
     /// Новый календарный день: вчерашний план становится «планом последнего рабочего дня».
     /// Пока идёт отрезок, день не переключаем: он разделится по полуночи при завершении.
     public mutating func rollOver(now: Date, calendar: Calendar) {

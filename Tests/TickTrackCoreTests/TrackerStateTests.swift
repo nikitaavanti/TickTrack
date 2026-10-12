@@ -216,6 +216,40 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
     }
 }
 
+@Suite struct PlanTests {
+    @Test func movesItemDown() {
+        var state = TrackerState()
+        state.plan = ["A-1", "A-2", "A-3"]
+        state.movePlanItem("A-1", to: "A-3")
+        #expect(state.plan == ["A-2", "A-3", "A-1"])
+    }
+
+    @Test func movesItemUp() {
+        var state = TrackerState()
+        state.plan = ["A-1", "A-2", "A-3"]
+        state.movePlanItem("A-3", to: "A-1")
+        #expect(state.plan == ["A-3", "A-1", "A-2"])
+    }
+
+    @Test func unknownItemIsIgnored() {
+        var state = TrackerState()
+        state.plan = ["A-1", "A-2"]
+        state.movePlanItem("B-1", to: "A-1")
+        state.movePlanItem("A-1", to: "B-1")
+        #expect(state.plan == ["A-1", "A-2"])
+    }
+
+    @Test func previousPlanIsSuggestedOnNewDay() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1", "A-2"], at: at(9, 0, day: 11), calendar: calendar)
+        state.rollOver(now: at(9, 0), calendar: calendar)
+        #expect(state.plan.isEmpty)
+        #expect(state.previousPlanSuggestions == ["A-1", "A-2"])
+        state.addToPlan("A-2")
+        #expect(state.previousPlanSuggestions == ["A-1"])
+    }
+}
+
 @Suite struct DailyNormTests {
     @Test func percentIsRoundedDown() {
         let norm = DailyNorm(minutes: 8 * 60)

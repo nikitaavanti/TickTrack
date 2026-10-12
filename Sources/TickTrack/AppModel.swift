@@ -149,10 +149,15 @@ final class AppModel {
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
 
+        // Плана на сегодня нет — сначала собрать его. При первом запуске — сразу после настроек.
+        let needsPlan = state.plan.isEmpty && state.current == nil
         if api == nil {
-            openSettings()
+            openSettings(then: needsPlan ? { [weak self] in
+                if let self, api != nil { openPlan() }
+            } : nil)
         } else {
             Task { await checkConnection() }
+            if needsPlan { openPlan() }
         }
     }
 
@@ -297,6 +302,11 @@ final class AppModel {
     func addToPlan(_ issue: Issue) {
         state.remember([issue])
         state.addToPlan(issue.idReadable)
+        save()
+    }
+
+    func movePlanItem(_ id: String, to target: String) {
+        state.movePlanItem(id, to: target)
         save()
     }
 

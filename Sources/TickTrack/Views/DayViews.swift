@@ -23,7 +23,8 @@ struct MorningView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Что берём в план на сегодня?").font(.title3.weight(.semibold))
             if !carryOver.isEmpty {
-                section("Вчера в плане", carryOver)
+                // План могли собрать ещё до начала дня: тогда это сегодняшние задачи, а не вчерашние.
+                section(model.state.plan.isEmpty ? "Вчера в плане" : "Уже в плане", carryOver)
             }
             if model.inProgressLoading && model.inProgress.isEmpty {
                 HStack { ProgressView().controlSize(.small); Text("Загружаем задачи «в работе»…").foregroundStyle(.secondary) }
@@ -132,48 +133,40 @@ struct PlanView: View {
     @State private var results: [Issue] = []
     @FocusState private var searchFocused: Bool
 
+    private var previous: [String] { model.state.previousPlanSuggestions }
+
     private var suggestions: [Issue] {
-        model.inProgress.filter { !model.state.plan.contains($0.idReadable) }
+        model.inProgress.filter { !model.state.plan.contains($0.idReadable) && !previous.contains($0.idReadable) }
     }
+
+    /// Перетаскиваемая задача: пока её тянут, план переставляется на лету.
+    @State private var dragging: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Задачи, между которыми вы будете переключаться сегодня. В меню у них будут цифры 1–9 для быстрого выбора.")
-                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Соберите задачи, над которыми будете работать сегодня.").font(.title3.weight(.semibold)).foregroundStyle(.primary)
+                Text("Они появятся в меню TickTrack, и переключаться между ними можно будет одним нажатием: откройте меню (\(model.settings.hotKey.display)) и нажмите цифру задачи или кликните по ней.")
+                Text("Цифры идут по порядку: верхняя задача — 1, следующая — 2, и так до 9. Перетащите задачу мышкой, чтобы поменять порядок.")
+            }
+            .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             BoxedList {
                 if model.state.plan.isEmpty {
-                    Text("Пока нет задач. Найдите их в YouTrack ниже.")
+                    Text("Пока нет задач.")
                         .foregroundStyle(.secondary).padding(10).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 ForEach(Array(model.state.plan.enumerated()), id: \.element) { index, id in
                     if index > 0 { Divider() }
-                    HStack {
-                        IssueLine(id: id, title: model.title(of: id))
-                        Spacer()
-                        if let project = model.issue(id)?.projectName, !project.isEmpty {
-                            Text(verbatim: project).font(.caption).foregroundStyle(.secondary)
-                                .padding(.horizontal, 7).padding(.vertical, 1)
-                                .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                        }
-                        Button {
-                            model.removeFromPlan(id)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Убрать из списка")
-                    }
-                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    planRow(id, index: index)
                 }
             }
+            Text("Добавить задачу: найдите её в YouTrack по ID или названию или возьмите из тех, что у вас в работе.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if !previous.isEmpty {
+                suggestionRow("Вчера в плане:", previous.map { model.issue($0) ?? Issue(idReadable: $0, summary: "") })
+            }
             if !suggestions.isEmpty {
-                FlowLayout(spacing: 6) {
-                    Text("В работе у вас в YouTrack:").font(.callout).foregroundStyle(.secondary)
-                    ForEach(suggestions) { issue in
-                        ChipButton(title: "+ " + issue.idReadable) { model.addToPlan(issue) }
-                            .help(issue.summary)
-                    }
-                }
+                suggestionRow("В работе у вас в YouTrack:", suggestions)
             }
             TextField("Найти задачу в YouTrack: ID или текст", text: $query)
                 .textFieldStyle(.roundedBorder)
@@ -198,11 +191,71 @@ struct PlanView: View {
         .task { await model.loadInProgress() }
     }
 
+    private func planRow(_ id: String, index: Int) -> some View {
+        HStack {
+            Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
+            IssueLine(id: id, title: model.title(of: id))
+            Spacer()
+            if let project = model.issue(id)?.projectName, !project.isEmpty {
+                Text(verbatim: project).font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 1)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+            }
+            Button {
+                model.removeFromPlan(id)
+            } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Убрать из списка")
+            // Цифра, как в меню: у десятой задачи и дальше её нет.
+            Text(verbatim: index < 9 ? String(index + 1) : "")
+                .font(.system(size: 11.5)).foregroundStyle(.secondary).frame(width: 16, alignment: .trailing)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .opacity(dragging == id ? 0.4 : 1)
+        .onDrag {
+            dragging = id
+            return NSItemProvider(object: id as NSString)
+        }
+        .onDrop(of: [.text], delegate: PlanDropDelegate(target: id, dragging: $dragging, model: model))
+    }
+
+    private func suggestionRow(_ title: LocalizedStringKey, _ issues: [Issue]) -> some View {
+        FlowLayout(spacing: 6) {
+            Text(title).font(.callout).foregroundStyle(.secondary)
+            ForEach(issues) { issue in
+                ChipButton(title: "+ " + issue.idReadable) { model.addToPlan(issue) }
+                    .help(issue.summary)
+            }
+        }
+    }
+
     private func add(_ issue: Issue) {
         model.addToPlan(issue)
         query = ""
         results = []
         searchFocused = true
+    }
+}
+
+/// Перестановка задач плана перетаскиванием: задача встаёт на место той, над которой её держат.
+private struct PlanDropDelegate: DropDelegate {
+    let target: String
+    @Binding var dragging: String?
+    let model: AppModel
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        withAnimation(.easeInOut(duration: 0.15)) { model.movePlanItem(dragging, to: target) }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
     }
 }
 

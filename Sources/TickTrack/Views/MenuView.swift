@@ -43,7 +43,7 @@ struct MenuView: View {
             MenuRow(icon: "list.bullet", title: Text("План на день…")) { run { model.openPlan() } }
             MenuRow(icon: "clock.arrow.circlepath", title: Text("Списания за сегодня…")) { run { model.openLog() } }
             MenuRow(icon: "info.circle", title: Text("О программе TickTrack")) { run(model.openAbout) }
-            MenuRow(icon: "gearshape", title: Text("Настройки…"), shortcut: "⌘,") { run(model.openSettings) }
+            MenuRow(icon: "gearshape", title: Text("Настройки…"), shortcut: "⌘,") { run { model.openSettings() } }
                 .keyboardShortcut(",", modifiers: .command)
             MenuRow(icon: "power", title: Text("Завершить TickTrack"), shortcut: "⌘Q") {
                 // Решение (спросить или выйти сразу) принимает applicationShouldTerminate.
