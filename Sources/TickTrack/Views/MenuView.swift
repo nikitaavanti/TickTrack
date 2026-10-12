@@ -103,9 +103,10 @@ struct MenuView: View {
     @ViewBuilder private var startButton: some View {
         switch state.status {
         case .notStarted, .ended:
-            BigButton(icon: "sun.max.fill", title: "Начать рабочий день", subtitle: "План на день и выбор первой задачи", shortcut: "↵") {
-                run(model.openMorning)
-            }
+            BigButton(
+                icon: "sun.max.fill", title: "Начать рабочий день",
+                subtitle: state.plan.isEmpty ? "План на день и выбор первой задачи" : "Выбор первой задачи", shortcut: "↵"
+            ) { run { model.startDay() } }
         default:
             if let id = state.startCandidate {
                 BigButton(
@@ -255,7 +256,7 @@ struct MenuView: View {
 
     private func primaryAction() {
         switch state.status {
-        case .notStarted, .ended: run(model.openMorning)
+        case .notStarted, .ended: run { model.startDay() }
         case .paused, .idle: if state.startCandidate != nil { run(model.resume) }
         case .tracking: break
         }

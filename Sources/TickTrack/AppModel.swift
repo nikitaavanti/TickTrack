@@ -268,6 +268,19 @@ final class AppModel {
         if committed { syncSoon() }
     }
 
+    /// «Начать рабочий день». План уже собран (при запуске или раньше сегодня) — сразу выбор первой задачи,
+    /// без «Доброго утра». Плана нет — «Доброе утро». Автопоказ по времени день не начинает: это делает пользователь.
+    func startDay(automatically: Bool = false) {
+        guard !state.plan.isEmpty else {
+            openMorning()
+            return
+        }
+        closeMenu()
+        reminder = nil
+        if !automatically { beginDay(plan: state.plan) }
+        openStartWork()
+    }
+
     func beginDay(plan: [String]) {
         state.beginDay(plan: plan, at: Date(), calendar: calendar)
         reminder = nil
@@ -520,7 +533,7 @@ final class AppModel {
         guard minutesNow >= settings.morningTime, state.lastAutoMorningDay.map({ $0 < today }) ?? true else { return }
         state.lastAutoMorningDay = today
         save()
-        openMorning()
+        startDay(automatically: true)
     }
 
     private func observeSystem() {

@@ -151,7 +151,7 @@ struct ReminderCard: View {
                 Button("Через 30 мин", action: model.snoozeReminder).buttonStyle(.borderless)
                 switch reminder.kind {
                 case .dayNotStarted:
-                    Button("Начать рабочий день", action: model.openMorning).buttonStyle(.glassProminent)
+                    Button("Начать рабочий день") { model.startDay() }.buttonStyle(.glassProminent)
                 case .paused, .untracked:
                     if reminder.issueId != nil {
                         Button("С этой минуты") { model.startFromReminder(backdated: false) }
