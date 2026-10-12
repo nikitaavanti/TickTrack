@@ -51,6 +51,11 @@ scripts/test.sh
 
 Данные хранятся в `~/Library/Application Support/TickTrack/state.json`, настройки — в `UserDefaults`, токен — в Keychain.
 
+## Ветки
+
+- `develop` — текущая разработка. Все изменения коммитятся сюда.
+- `main` — выпущенные версии. В `main` попадает только выпуск: `develop` вливается в `main`, и на этот коммит ставится метка версии.
+
 ## Версии
 
 Версия по [SemVer](https://semver.org/lang/ru/): PATCH — исправления, MINOR — новые возможности, MAJOR — крупная веха (1.0.0 — когда пройдены критерии приёмки из ТЗ).
@@ -62,5 +67,6 @@ scripts/test.sh
 
 1. Перенести изменения в [CHANGELOG.md](CHANGELOG.md) под новый номер и дату.
 2. Поменять `CFBundleShortVersionString` в `Support/Info.plist`.
-3. Закоммитить («Release 0.2.0»), поставить метку и отправить её: `git tag v0.2.0 && git push --tags`.
-4. Собрать `scripts/build-app.sh` из этого коммита.
+3. Закоммитить в `develop` («Release 0.2.0»).
+4. Влить в `main`, поставить метку и отправить: `git switch main && git merge --ff-only develop && git tag v0.2.0 && git push && git push --tags`, затем вернуться в `develop`.
+5. Собрать `scripts/build-app.sh` из этого коммита.
