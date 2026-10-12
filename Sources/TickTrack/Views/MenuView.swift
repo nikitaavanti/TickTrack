@@ -31,21 +31,21 @@ struct MenuView: View {
             searchSection
             Divider().padding(.vertical, 4)
             if state.current != nil {
-                MenuRow(mark: "⏸", title: Text("Пауза"), shortcut: "␣") { run(model.pause) }
-                MenuRow(title: Text("Я забыл переключиться…")) { run(model.openReassign) }
+                MenuRow(icon: "pause", title: Text("Пауза"), shortcut: "␣") { run(model.pause) }
+                MenuRow(icon: "arrow.uturn.backward", title: Text("Я забыл переключиться…")) { run(model.openReassign) }
             }
             if state.current != nil || state.status == .paused {
-                MenuRow(mark: "■", title: Text("Завершить рабочий день")) { run { model.endDay() } }
+                MenuRow(icon: "stop", title: Text("Завершить рабочий день")) { run { model.endDay() } }
             }
             if state.current != nil || state.status == .paused {
                 Divider().padding(.vertical, 4)
             }
-            MenuRow(title: Text("План на день…")) { run { model.openPlan() } }
-            MenuRow(title: Text("Списания за сегодня…")) { run { model.openLog() } }
-            MenuRow(title: Text("О программе TickTrack")) { run(model.openAbout) }
-            MenuRow(title: Text("Настройки…"), shortcut: "⌘,") { run(model.openSettings) }
+            MenuRow(icon: "list.bullet", title: Text("План на день…")) { run { model.openPlan() } }
+            MenuRow(icon: "clock.arrow.circlepath", title: Text("Списания за сегодня…")) { run { model.openLog() } }
+            MenuRow(icon: "info.circle", title: Text("О программе TickTrack")) { run(model.openAbout) }
+            MenuRow(icon: "gearshape", title: Text("Настройки…"), shortcut: "⌘,") { run(model.openSettings) }
                 .keyboardShortcut(",", modifiers: .command)
-            MenuRow(title: Text("Завершить TickTrack"), shortcut: "⌘Q") {
+            MenuRow(icon: "power", title: Text("Завершить TickTrack"), shortcut: "⌘Q") {
                 // Решение (спросить или выйти сразу) принимает applicationShouldTerminate.
                 run { NSApp.terminate(nil) }
             }
@@ -147,7 +147,7 @@ struct MenuView: View {
     @ViewBuilder private var searchSection: some View {
         if searching {
             VStack(alignment: .leading, spacing: 4) {
-                TextField("ID или текст, по всем проектам", text: $query)
+                TextField("ID или название — можно начать печатать прямо в меню", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .focused($focus, equals: .search)
                     .onSubmit(pickFirst)
@@ -162,11 +162,11 @@ struct MenuView: View {
             }
             .padding(.vertical, 2)
         } else {
-            MenuRow(mark: "+", title: Text("Другая задача из YouTrack…"), subtitle: "или просто начните печатать", shortcut: "⌘F") {
+            MenuRow(icon: "magnifyingglass", title: Text("Другая задача из YouTrack…"), hint: "Поиск по ID или названию", shortcut: "⌘F") {
                 openSearch("")
             }
             .keyboardShortcut("f", modifiers: .command)
-            MenuRow(mark: "✚", title: Text("Новая задача в YouTrack…"), subtitle: "если позвали на то, чего ещё нет", shortcut: "⌘N") {
+            MenuRow(icon: "plus", title: Text("Новая задача в YouTrack…"), hint: "Создать и сразу начать учёт", shortcut: "⌘N") {
                 run { model.openCreate(prefill: "") }
             }
             .keyboardShortcut("n", modifiers: .command)

@@ -25,9 +25,14 @@ struct MenuRowStyle: ButtonStyle {
 }
 
 struct MenuRow: View {
+    /// Иконка команды (SF Symbol). У задач вместо неё `mark` — галочка текущей.
+    var icon: String?
     var mark: String = ""
     var title: Text
+    /// `ID · проект` у задач — моноширинным шрифтом.
     var subtitle: String?
+    /// Пояснение к команде — обычным шрифтом.
+    var hint: LocalizedStringKey?
     var trailing: String?
     var shortcut: String?
     var bold = false
@@ -37,11 +42,21 @@ struct MenuRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Text(mark).font(.system(size: 12)).frame(width: 14)
+                Group {
+                    if let icon {
+                        Image(systemName: icon).font(.system(size: 12.5)).foregroundStyle(tint ?? .primary)
+                    } else {
+                        Text(mark).font(.system(size: 12))
+                    }
+                }
+                .frame(width: 16)
                 VStack(alignment: .leading, spacing: 1) {
                     title.fontWeight(bold ? .semibold : .regular).foregroundStyle(tint ?? .primary).lineLimit(1)
                     if let subtitle {
                         Text(verbatim: subtitle).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    if let hint {
+                        Text(hint).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
                 Spacer(minLength: 4)
@@ -158,7 +173,7 @@ struct IssueSearchResults: View {
                 }
             }
             if let onCreate, !trimmed.isEmpty {
-                MenuRow(mark: "+", title: Text("Создать «\(Fmt.short(trimmed, 30))» в YouTrack"), tint: .accentColor) {
+                MenuRow(icon: "plus", title: Text("Создать «\(Fmt.short(trimmed, 30))» в YouTrack"), tint: .accentColor) {
                     onCreate(trimmed)
                 }
             }
