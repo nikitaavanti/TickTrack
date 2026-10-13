@@ -36,6 +36,8 @@ final class AppSettings {
     var serverURL: String { didSet { defaults.set(serverURL, forKey: Key.serverURL) } }
     var token: String { didSet { Keychain.save(token, account: Key.token) } }
     var inProgressQuery: String { didSet { defaults.set(inProgressQuery, forKey: Key.inProgressQuery) } }
+    /// «Мои проекты» — короткие имена (`ATLAS`, `VEG`). Пусто — работаем со всеми проектами.
+    var myProjects: [String] { didSet { defaults.set(myProjects, forKey: Key.myProjects) } }
 
     var autopauseEnabled: Bool { didSet { defaults.set(autopauseEnabled, forKey: Key.autopauseEnabled) } }
     var autopauseMinutes: Int { didSet { defaults.set(autopauseMinutes, forKey: Key.autopauseMinutes) } }
@@ -81,6 +83,7 @@ final class AppSettings {
         serverURL = defaults.string(forKey: Key.serverURL) ?? ""
         token = Keychain.read(account: Key.token) ?? ""
         inProgressQuery = defaults.string(forKey: Key.inProgressQuery) ?? ""
+        myProjects = defaults.stringArray(forKey: Key.myProjects) ?? []
         autopauseEnabled = defaults.bool(forKey: Key.autopauseEnabled)
         autopauseMinutes = max(1, defaults.integer(forKey: Key.autopauseMinutes))
         forgotEnabled = defaults.bool(forKey: Key.forgotEnabled)
@@ -112,6 +115,7 @@ final class AppSettings {
         static let serverURL = "serverURL"
         static let token = "youtrackToken"
         static let inProgressQuery = "inProgressQuery"
+        static let myProjects = "myProjects"
         static let autopauseEnabled = "autopauseEnabled"
         static let autopauseMinutes = "autopauseMinutes"
         static let forgotEnabled = "forgotEnabled"

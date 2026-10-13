@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import TickTrackCore
 
@@ -13,7 +14,7 @@ struct CardStackView: View {
                 WriteOffCard(model: model, draft: draft)
             }
             ForEach(model.toasts) { toast in
-                ToastView(toast: toast)
+                ToastView(model: model, toast: toast)
             }
         }
         .padding(10)
@@ -23,19 +24,78 @@ struct CardStackView: View {
     }
 }
 
-private struct CardBackground: ViewModifier {
-    var highlight: Color?
+/// Карточка в стиле уведомления macOS: иконка приложения слева, стекло, крупное скругление,
+/// крестик закрытия в левом верхнем углу при наведении.
+private struct NotificationCard<Content: View>: View {
+    /// Значок поверх иконки приложения: что за уведомление (списано, ошибка, напоминание).
+    var badge: (symbol: String, color: Color)?
+    var closeHelp: LocalizedStringKey = "Закрыть"
+    let onClose: () -> Void
+    @ViewBuilder var content: Content
 
-    func body(content: Content) -> some View {
-        content
-            .padding(12)
-            .frame(width: CardPanelController.width - 20, alignment: .leading)
-            .glassEffect(.regular, in: .rect(cornerRadius: 16))
-            .overlay {
-                if let highlight {
-                    RoundedRectangle(cornerRadius: 16).strokeBorder(highlight, lineWidth: 1.5)
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            AppIconBadge(badge: badge)
+            content.frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 11)
+        .frame(width: CardPanelController.width - 20, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .overlay(alignment: .topLeading) {
+            if hovering {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .help(closeHelp)
+                .offset(x: -7, y: -7)
+                .transition(.opacity)
+            }
+        }
+        .onHover { over in withAnimation(.easeOut(duration: 0.12)) { hovering = over } }
+    }
+}
+
+/// Иконка приложения, как в системных уведомлениях, со значком-пояснением в углу.
+private struct AppIconBadge: View {
+    let badge: (symbol: String, color: Color)?
+
+    var body: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .frame(width: 32, height: 32)
+            .overlay(alignment: .bottomTrailing) {
+                if let badge {
+                    Image(systemName: badge.symbol)
+                        .font(.system(size: 7.5, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(width: 15, height: 15)
+                        .background(Circle().fill(badge.color))
+                        .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1))
+                        .offset(x: 4, y: 4)
                 }
             }
+    }
+}
+
+/// Строка заголовка уведомления: жирный заголовок слева, серая подпись справа.
+private struct CardHeader<Trailing: View>: View {
+    let title: Text
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            title.font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            Spacer(minLength: 4)
+            trailing.font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit()
+        }
     }
 }
 
@@ -62,50 +122,56 @@ struct WriteOffCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(verbatim: draft.issueId)
-                    .font(.system(size: 11.5, design: .monospaced))
-                    .padding(.horizontal, 6).padding(.vertical, 1)
-                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.15)))
-                Text(verbatim: Fmt.hm(draft.minutes)).font(.system(size: 14, weight: .semibold, design: .monospaced))
-                Text("факт \(Fmt.hm(draft.rawMinutes))").font(.system(size: 11.5)).foregroundStyle(.secondary)
-                Spacer()
-                Group {
-                    if holding { Text("ждёт вас") } else { Text("спишется через \(remaining) с") }
+        NotificationCard(closeHelp: "Закрыть и списать как есть", onClose: { finish(commit: true) }) {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    CardHeader(title: Text(verbatim: model.title(of: draft.issueId).isEmpty ? draft.issueId : model.title(of: draft.issueId))) {
+                        if holding { Text("ждёт вас") } else { Text("через \(remaining) с") }
+                    }
+                    .issueContextMenu(model, draft.issueId)
+                    HStack(spacing: 0) {
+                        IssueIDLink(model: model, id: draft.issueId, font: .system(size: 12, design: .monospaced))
+                        Text(verbatim: " · ").foregroundStyle(.secondary)
+                        Text("списать \(Fmt.hm(draft.minutes))").fontWeight(.semibold)
+                        Text(verbatim: " · ").foregroundStyle(.secondary)
+                        Text("факт \(Fmt.hm(draft.rawMinutes))").foregroundStyle(.secondary)
+                    }
+                    .font(.system(size: 12)).monospacedDigit().lineLimit(1)
                 }
-                .font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit()
-            }
-            Text(verbatim: Fmt.short(model.title(of: draft.issueId), 48)).font(.system(size: 12.5)).lineLimit(1)
-            FlowLayout(spacing: 4) {
-                ForEach(WorkType.allCases) { option in
-                    ChipButton(title: option.title, selected: option == type) { select(option) }
+                FlowLayout(spacing: 4) {
+                    ForEach(WorkType.allCases) { option in
+                        ChipButton(title: option.title, selected: option == type) { select(option) }
+                    }
                 }
-            }
-            TextField("Комментарий", text: $text)
-                .textFieldStyle(.roundedBorder)
-                .focused($fieldFocused)
-                .onSubmit { finish(commit: true) }
-                .onExitCommand { finish(commit: false) }
-                .onChange(of: fieldFocused) { _, focused in if focused { holding = true } }
-                .onChange(of: text) {
-                    holding = true
-                    model.noteDraftInput(draft, comment: text, type: type)
+                TextField("Комментарий", text: $text)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($fieldFocused)
+                    .onSubmit { finish(commit: true) }
+                    .onExitCommand { finish(commit: false) }
+                    .onChange(of: fieldFocused) { _, focused in if focused { holding = true } }
+                    .onChange(of: text) {
+                        holding = true
+                        model.noteDraftInput(draft, comment: text, type: type)
+                    }
+                HStack(spacing: 8) {
+                    // Тонкая полоса отсчёта, как индикатор в системных уведомлениях; пока ждём пользователя — скрыта.
+                    Capsule().fill(Color.secondary.opacity(0.18))
+                        .frame(height: 3)
+                        .overlay(alignment: .leading) {
+                            GeometryReader { proxy in
+                                Capsule().fill(Color.accentColor)
+                                    .frame(width: proxy.size.width * (holding ? 0 : Double(remaining) / Double(max(total, 1))))
+                                    .animation(.linear(duration: 1), value: remaining)
+                            }
+                        }
+                        .opacity(holding ? 0 : 1)
+                    Button("Не списывать") { finish(commit: false) }
+                    Button("Списать") { finish(commit: true) }
+                        .buttonStyle(.glassProminent)
                 }
-            HStack {
-                Spacer()
-                Button("Не списывать") { finish(commit: false) }
-                    .buttonStyle(.borderless)
-                Button("Списать ↵") { finish(commit: true) }
-                    .buttonStyle(.glassProminent)
+                .controlSize(.small)
             }
-            .controlSize(.small)
-            ProgressView(value: holding ? 0 : Double(remaining), total: Double(max(total, 1)))
-                .progressViewStyle(.linear)
-                .tint(.accentColor)
-                .animation(.linear(duration: 1), value: remaining)
         }
-        .modifier(CardBackground())
         .task {
             while !Task.isCancelled, !holding, remaining > 0 {
                 try? await Task.sleep(for: .seconds(1))
@@ -139,30 +205,29 @@ struct ReminderCard: View {
     let reminder: Reminder
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Учёт не идёт").font(.system(size: 14, weight: .semibold))
-                Spacer()
-                Text(verbatim: Fmt.clock(model.now)).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            message.font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
-                Button("Через 30 мин", action: model.snoozeReminder).buttonStyle(.borderless)
-                switch reminder.kind {
-                case .dayNotStarted:
-                    Button("Начать рабочий день") { model.startDay() }.buttonStyle(.glassProminent)
-                case .paused, .untracked:
-                    if reminder.issueId != nil {
-                        Button("С этой минуты") { model.startFromReminder(backdated: false) }
-                        Button("Начать с \(Fmt.clock(reminder.since))") { model.startFromReminder(backdated: true) }
-                            .buttonStyle(.glassProminent)
+        NotificationCard(badge: ("clock", .orange), closeHelp: "Напомнить через 30 мин", onClose: model.snoozeReminder) {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    CardHeader(title: Text("Учёт не идёт")) { Text(verbatim: Fmt.clock(model.now)) }
+                    message.font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Spacer()
+                    Button("Через 30 мин", action: model.snoozeReminder)
+                    switch reminder.kind {
+                    case .dayNotStarted:
+                        Button("Начать рабочий день") { model.startDay() }.buttonStyle(.glassProminent)
+                    case .paused, .untracked:
+                        if reminder.issueId != nil {
+                            Button("С этой минуты") { model.startFromReminder(backdated: false) }
+                            Button("Начать с \(Fmt.clock(reminder.since))") { model.startFromReminder(backdated: true) }
+                                .buttonStyle(.glassProminent)
+                        }
                     }
                 }
+                .controlSize(.small)
             }
-            .controlSize(.small)
         }
-        .modifier(CardBackground(highlight: .orange))
     }
 
     private var message: Text {
@@ -180,20 +245,19 @@ struct ReminderCard: View {
 }
 
 struct ToastView: View {
+    let model: AppModel
     let toast: Toast
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(toast.isError ? Color.orange : Color.green)
-                .font(.system(size: 16))
+        NotificationCard(
+            badge: toast.isError ? ("exclamationmark", .orange) : ("checkmark", .green),
+            onClose: { model.dismissToast(toast) }
+        ) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: toast.title).font(.system(size: 12.5, weight: .semibold))
+                CardHeader(title: Text(verbatim: toast.title)) { Text("сейчас") }
                 Text(verbatim: toast.text).font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
-        .modifier(CardBackground())
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 }

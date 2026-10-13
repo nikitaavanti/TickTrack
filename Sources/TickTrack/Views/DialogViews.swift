@@ -2,56 +2,142 @@ import SwiftUI
 import TickTrackCore
 
 /// «Я забыл переключиться…»: последние N минут переносятся на другую задачу.
+/// Задача выбирается из плана на сегодня (кроме текущей) или находится поиском по YouTrack.
 struct ReassignView: View {
     let model: AppModel
     let close: () -> Void
 
     @State private var minutes: Int
     @State private var target: String
+    /// Задача не из плана, найденная поиском: стоит в списке первой.
+    @State private var found: Issue?
+    @State private var query = ""
+    @State private var results: [Issue] = []
     private let maximum: Int
     private let current: ActiveSegment?
+    /// Когда открыли окно. «Последние N минут» считаются от этого момента, а не от нажатия «Перенести»:
+    /// пока решали, время идёт, и оно должно уйти новой задаче.
+    private let openedAt: Date
 
     init(model: AppModel, close: @escaping () -> Void) {
         self.model = model
         self.close = close
+        let now = Date()
+        openedAt = now
         current = model.state.current
-        maximum = max(1, model.elapsedMinutes)
-        _minutes = State(initialValue: min(15, max(1, model.elapsedMinutes)))
-        let others = model.pickableIssues(excluding: model.state.current?.issueId)
-        _target = State(initialValue: others.first?.idReadable ?? "")
+        let elapsed = model.state.elapsedMinutes(at: now)
+        maximum = max(1, elapsed)
+        _minutes = State(initialValue: min(15, max(1, elapsed)))
+        _target = State(initialValue: model.state.plan.first { $0 != model.state.current?.issueId } ?? "")
     }
+
+    private var planChoices: [String] {
+        model.state.plan.filter { $0 != current?.issueId }
+    }
+
+    /// Строки выбора: найденная поиском задача (если её нет в плане), затем план.
+    private var choices: [String] {
+        guard let found, !planChoices.contains(found.idReadable) else { return planChoices }
+        return [found.idReadable] + planChoices
+    }
+
+    private var chosenMinutes: Int { min(maximum, max(1, minutes)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let current {
                 Text("Учёт идёт по \(current.issueId) с \(Fmt.clock(current.start)). Если последние минуты вы уже работали над другой задачей, перенесите их туда.")
                     .fixedSize(horizontal: false, vertical: true)
-                Form {
-                    LabeledContent("Последние, мин") {
-                        HStack {
-                            TextField("", value: $minutes, format: .number).frame(width: 60).labelsHidden()
-                            Stepper("", value: $minutes, in: 1...maximum).labelsHidden()
-                            Text("из \(maximum)").foregroundStyle(.secondary)
+                HStack {
+                    Text("Последние, мин")
+                    TextField("", value: $minutes, format: .number).frame(width: 60).labelsHidden()
+                    Stepper("", value: $minutes, in: 1...maximum).labelsHidden()
+                    Text("из \(maximum)").foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("На задачу").font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                    if choices.isEmpty {
+                        Text("В плане на сегодня других задач нет. Найдите задачу в YouTrack.")
+                            .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        BoxedList {
+                            if choices.count > 6 {
+                                ScrollView { choiceRows }.frame(height: 6.5 * 35)
+                            } else {
+                                choiceRows
+                            }
                         }
                     }
-                    IssuePicker(title: "На задачу", selection: $target, issues: model.pickableIssues(excluding: current.issueId))
                 }
-                Text("По \(current.issueId) спишется время до этого момента, дальше учёт пойдёт по выбранной задаче.")
+                TextField("Другая задача из YouTrack: ID или текст", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { if let first = results.first { pick(first) } }
+                // Результаты не показываются, пока поле пустое.
+                if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    IssueSearchResults(model: model, query: query, results: $results, limit: 20, visibleRows: 4, onPick: pick, excluding: current.issueId)
+                        .padding(4)
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.2)))
+                }
+                summary(current)
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 Spacer()
                 Button("Отмена", action: close).keyboardShortcut(.cancelAction)
                 Button("Перенести") {
-                    model.reassign(lastMinutes: min(maximum, max(1, minutes)), to: target)
+                    model.reassign(lastMinutes: chosenMinutes, to: target, asOf: openedAt)
                     close()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(target.isEmpty || model.state.current?.issueId != current?.issueId)
+                .disabled(target.isEmpty || target == current?.issueId || model.state.current?.issueId != current?.issueId)
             }
         }
         .padding(20)
-        .frame(width: 480)
+        .frame(width: 520)
+    }
+
+    /// Что произойдёт: с какого времени учёт пойдёт по выбранной задаче.
+    private func summary(_ current: ActiveSegment) -> Text {
+        if chosenMinutes >= maximum {
+            return Text("Всё время с \(Fmt.clock(current.start)) перейдёт на выбранную задачу, по \(current.issueId) ничего не спишется.")
+        }
+        let boundary = Fmt.clock(openedAt.addingTimeInterval(-Double(chosenMinutes) * 60))
+        return Text("По \(current.issueId) спишется время до \(boundary), с \(boundary) учёт пойдёт по выбранной задаче.")
+    }
+
+    private var choiceRows: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(choices.enumerated()), id: \.element) { index, id in
+                if index > 0 { Divider() }
+                Button {
+                    target = id
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: target == id ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(target == id ? Color.accentColor : Color.secondary)
+                        IssueLine(model: model, id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
+                        Spacer()
+                        if found?.idReadable == id && !planChoices.contains(id) {
+                            Text("из поиска").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .issueContextMenu(model, id)
+            }
+        }
+    }
+
+    /// Текущей задачи в результатах поиска нет: переносить время на неё же бессмысленно.
+    private func pick(_ issue: Issue) {
+        guard issue.idReadable != current?.issueId else { return }
+        model.remember([issue])
+        found = issue
+        target = issue.idReadable
+        query = ""
+        results = []
     }
 }
 
@@ -86,7 +172,7 @@ struct CreateIssueView: View {
                     .onSubmit(create)
                 Picker("Проект", selection: $projectId) {
                     if projectId.isEmpty { Text("Выберите проект").tag("") }
-                    ForEach(model.projects) { project in
+                    ForEach(model.projectsForNewIssue) { project in
                         Text(verbatim: "\(project.name) (\(project.shortName))").tag(project.id)
                     }
                 }
@@ -126,7 +212,8 @@ struct CreateIssueView: View {
         .task {
             titleFocused = true
             await model.loadProjects()
-            if projectId.isEmpty, let first = model.projects.first { projectId = first.id }
+            // Последний проект мог не входить в «Мои проекты» — тогда первый из них.
+            if !model.projectsForNewIssue.contains(where: { $0.id == projectId }), let first = model.projectsForNewIssue.first { projectId = first.id }
         }
     }
 

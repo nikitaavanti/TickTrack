@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import TickTrackCore
 
-/// Обычные окна приложения (настройки, «Доброе утро» и т. д.). Окна независимы друг от друга.
+/// Обычные окна приложения (настройки, «План на день» и т. д.). Окна независимы друг от друга.
 final class WindowCoordinator: NSObject, NSWindowDelegate {
     private var windows: [String: NSWindow] = [:]
     private var closeHandlers: [String: () -> Void] = [:]
@@ -50,16 +50,6 @@ extension AppModel {
         { [weak self] in self?.windows.close(id) }
     }
 
-    func openMorning() {
-        closeMenu()
-        reminder = nil
-        Task { await loadInProgress(force: true) }
-        Task { await refreshIssues(state.morningCarryOver) }
-        windows.show("morning", title: "Доброе утро") {
-            MorningView(model: self, close: closer("morning"))
-        }
-    }
-
     func openStartWork() {
         guard !state.plan.isEmpty else {
             toast("План пуст", "Добавьте задачи через «План на день», затем начните работу из меню")
@@ -70,7 +60,7 @@ extension AppModel {
         }
     }
 
-    /// `then` вызывается после закрытия окна плана: так «Собрать с нуля» и «Дополнить план…» ведут дальше.
+    /// `then` вызывается после закрытия окна плана: так «Начать рабочий день» и «Дополнить план…» ведут дальше.
     func openPlan(then next: (() -> Void)? = nil) {
         closeMenu()
         Task { await refreshIssues(state.plan + state.previousPlanSuggestions) }

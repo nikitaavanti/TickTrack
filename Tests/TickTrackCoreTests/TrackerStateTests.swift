@@ -93,10 +93,28 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
     @Test func forgotToSwitchSplitsAtBoundary() {
         var state = TrackerState()
         _ = state.start(issueId: "A-1", at: at(10, 0), config: config)
-        let events = state.reassign(lastMinutes: 20, to: "B-2", now: at(11, 0), config: config)
+        let events = state.reassign(lastMinutes: 20, to: "B-2", asOf: at(11, 0), config: config)
         #expect(drafts(events).first?.end == at(10, 40))
         #expect(drafts(events).first?.rawMinutes == 40)
         #expect(state.current == ActiveSegment(issueId: "B-2", start: at(10, 40)))
+    }
+
+    /// Окно открыли в 10:12 и думали 3 минуты: «последние 5» — это 10:07–10:12, а не 10:10–10:15.
+    @Test func forgotToSwitchCountsFromWhenWindowOpened() {
+        var state = TrackerState()
+        _ = state.start(issueId: "A-1", at: at(10, 0), config: config)
+        let events = state.reassign(lastMinutes: 5, to: "B-2", asOf: at(10, 12), config: config)
+        #expect(drafts(events).first?.rawMinutes == 7)
+        #expect(state.current == ActiveSegment(issueId: "B-2", start: at(10, 7)))
+    }
+
+    /// Перенесли всё время, пока окно было открыто: на старой задаче не остаётся ни карточки, ни «Не списано».
+    @Test func forgotToSwitchWholeSegmentLeavesNothingBehind() {
+        var state = TrackerState()
+        _ = state.start(issueId: "A-1", at: at(10, 57), config: config)
+        let events = state.reassign(lastMinutes: 13, to: "B-2", asOf: at(11, 10), config: config)
+        #expect(events.isEmpty)
+        #expect(state.current == ActiveSegment(issueId: "B-2", start: at(10, 57)))
     }
 
     @Test func segmentAcrossMidnightIsSplit() {
@@ -333,5 +351,48 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         let loaded = try JSONDecoder().decode(TrackerState.self, from: old)
         #expect(loaded.plan == ["A-1"])
         #expect(loaded.external.isEmpty)
+    }
+}
+
+@Suite struct IssueLinkTests {
+    @Test func issueURLFromServerAddress() {
+        #expect(YouTrackClient.issueURL(server: "https://yt.example.com/", issueId: "VEG-4499")?.absoluteString == "https://yt.example.com/issue/VEG-4499")
+        #expect(YouTrackClient.issueURL(server: " yt.example.com ", issueId: "VEG-4499")?.absoluteString == "https://yt.example.com/issue/VEG-4499")
+        #expect(YouTrackClient.issueURL(server: "https://example.com/youtrack//", issueId: "ATLAS-99")?.absoluteString == "https://example.com/youtrack/issue/ATLAS-99")
+    }
+
+    @Test func noIssueURLWithoutServer() {
+        #expect(YouTrackClient.issueURL(server: "", issueId: "VEG-1") == nil)
+        #expect(YouTrackClient.issueURL(server: "https://yt.example.com", issueId: " ") == nil)
+    }
+}
+
+@Suite struct IssueQueryTests {
+    @Test func searchIsLimitedToMyProjects() {
+        #expect(IssueQuery.search("бюджет", projects: ["ATLAS", "VEG"]) == "project: {ATLAS}, {VEG} бюджет")
+        #expect(IssueQuery.search(" бюджет ", projects: []) == "бюджет")
+    }
+
+    @Test func exactIdIsSearchedEverywhere() {
+        #expect(IssueQuery.isIssueId("QA-12451"))
+        #expect(IssueQuery.isIssueId(" veg-4499 "))
+        #expect(!IssueQuery.isIssueId("VEG"))
+        #expect(!IssueQuery.isIssueId("VEG-45 бюджет"))
+        #expect(IssueQuery.search("QA-12451", projects: ["ATLAS"]) == "QA-12451")
+    }
+
+    @Test func inProgressQueryIsRestricted() {
+        #expect(IssueQuery.restricted("for: me State: {In Progress}", projects: ["ATLAS"]) == "for: me State: {In Progress} project: {ATLAS}")
+        #expect(IssueQuery.restricted("for: me or #Unassigned", projects: ["ATLAS"]) == "(for: me or #Unassigned) and project: {ATLAS}")
+        #expect(IssueQuery.restricted("for: me", projects: []) == "for: me")
+    }
+
+    @Test func issuesOutsideMyProjectsAreFiltered() {
+        let atlas = Issue(idReadable: "ATLAS-1", summary: "", project: Project(id: "0-1", name: "ATLAS", shortName: "ATLAS"))
+        let mod = Issue(idReadable: "MOD-1", summary: "", project: Project(id: "0-2", name: "MOD", shortName: "MOD"))
+        #expect(IssueQuery.isInProjects(atlas, ["atlas"]))
+        #expect(!IssueQuery.isInProjects(mod, ["ATLAS"]))
+        #expect(IssueQuery.isInProjects(mod, []))
+        #expect(IssueQuery.isInProjects(Issue(idReadable: "X-1", summary: ""), ["ATLAS"]))
     }
 }

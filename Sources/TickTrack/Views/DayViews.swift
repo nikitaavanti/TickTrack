@@ -1,81 +1,6 @@
 import SwiftUI
 import TickTrackCore
 
-/// «Доброе утро»: что берём в план на сегодня.
-struct MorningView: View {
-    let model: AppModel
-    let close: () -> Void
-
-    @State private var unchecked: Set<String> = []
-    private let carryOver: [String]
-
-    init(model: AppModel, close: @escaping () -> Void) {
-        self.model = model
-        self.close = close
-        carryOver = model.state.morningCarryOver
-    }
-
-    private var inProgress: [String] {
-        model.inProgress.map(\.idReadable).filter { !carryOver.contains($0) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Что берём в план на сегодня?").font(.title3.weight(.semibold))
-            if !carryOver.isEmpty {
-                // План могли собрать ещё до начала дня: тогда это сегодняшние задачи, а не вчерашние.
-                section(model.state.plan.isEmpty ? "Вчера в плане" : "Уже в плане", carryOver)
-            }
-            if model.inProgressLoading && model.inProgress.isEmpty {
-                HStack { ProgressView().controlSize(.small); Text("Загружаем задачи «в работе»…").foregroundStyle(.secondary) }
-            } else if !inProgress.isEmpty {
-                section("В работе у вас в YouTrack", inProgress)
-            }
-            if carryOver.isEmpty && inProgress.isEmpty && !model.inProgressLoading {
-                Text("Предложить нечего: вчерашнего плана нет, задач «в работе» не найдено.").foregroundStyle(.secondary)
-            }
-            Text("Снимите лишние галочки. На следующем шаге список можно дополнить поиском.")
-                .font(.callout).foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Собрать с нуля") {
-                    model.beginDay(plan: [])
-                    close()
-                    model.openPlan(then: { [model] in model.openStartWork() })
-                }
-                Button("Взять выбранные") {
-                    model.beginDay(plan: (carryOver + inProgress).filter { !unchecked.contains($0) })
-                    close()
-                    model.openStartWork()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .frame(width: 500)
-    }
-
-    private func section(_ title: LocalizedStringKey, _ ids: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
-            BoxedList {
-                ForEach(Array(ids.enumerated()), id: \.element) { index, id in
-                    if index > 0 { Divider() }
-                    Toggle(isOn: Binding(
-                        get: { !unchecked.contains(id) },
-                        set: { if $0 { unchecked.remove(id) } else { unchecked.insert(id) } }
-                    )) {
-                        IssueLine(id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
-                    }
-                    .toggleStyle(.checkbox)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-    }
-}
-
 /// «Начало работы»: с какой задачи начинаете.
 struct StartWorkView: View {
     let model: AppModel
@@ -90,12 +15,13 @@ struct StartWorkView: View {
                 ForEach(Array(model.state.plan.enumerated()), id: \.element) { index, id in
                     if index > 0 { Divider() }
                     Button {
+                        if model.isCommandClick { return model.openInYouTrack(id) }
                         close()
                         model.startIssue(id)
                         model.toast("Учёт начат", "\(id) · с \(Fmt.clock(Date()))")
                     } label: {
                         HStack {
-                            IssueLine(id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
+                            IssueLine(model: model, id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
                             Spacer()
                             Label("Начать", systemImage: "play.fill").font(.caption).foregroundStyle(.secondary)
                         }
@@ -103,6 +29,7 @@ struct StartWorkView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .issueContextMenu(model, id)
                 }
             }
             HStack {
@@ -192,7 +119,7 @@ struct PlanView: View {
     private func planRow(_ id: String, index: Int) -> some View {
         HStack {
             Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-            IssueLine(id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
+            IssueLine(model: model, id: id, title: model.title(of: id), unavailable: model.unavailableIssues.contains(id))
             Spacer()
             if let project = model.issue(id)?.projectName, !project.isEmpty {
                 Text(verbatim: project).font(.caption).foregroundStyle(.secondary)
@@ -212,6 +139,9 @@ struct PlanView: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
         .contentShape(Rectangle())
+        .issueContextMenu(model, id)
+        // Только ⌘-клик: обычный клик и перетаскивание остаются за строкой.
+        .simultaneousGesture(TapGesture().modifiers(.command).onEnded { model.openInYouTrack(id) })
         .opacity(dragging == id ? 0.4 : 1)
         .onDrag {
             dragging = id
@@ -259,10 +189,11 @@ struct PlanView: View {
             ForEach(issues) { issue in
                 Divider()
                 Button {
+                    if model.isCommandClick { return model.openInYouTrack(issue.idReadable) }
                     model.addToPlan(issue)
                 } label: {
                     HStack {
-                        IssueLine(id: issue.idReadable, title: model.title(of: issue.idReadable), unavailable: model.unavailableIssues.contains(issue.idReadable))
+                        IssueLine(model: model, id: issue.idReadable, title: model.title(of: issue.idReadable), unavailable: model.unavailableIssues.contains(issue.idReadable))
                         Spacer()
                         if !issue.projectName.isEmpty {
                             Text(verbatim: issue.projectName).font(.caption).foregroundStyle(.secondary)
@@ -276,6 +207,7 @@ struct PlanView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Добавить в план")
+                .issueContextMenu(model, issue.idReadable)
             }
         }
     }
@@ -393,7 +325,7 @@ struct LogView: View {
         HStack(alignment: .top, spacing: 10) {
             Text(verbatim: Fmt.clock(entry.end)).font(.system(size: 12.5, design: .monospaced)).frame(width: 50, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: entry.issueId).font(.system(size: 11.5, design: .monospaced))
+                IssueIDLink(model: model, id: entry.issueId)
                 Text(verbatim: entry.comment).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if entry.sync != .synced {
                     Group {
@@ -408,6 +340,8 @@ struct LogView: View {
             Button("Изменить") { beginEdit(entry) }.buttonStyle(.link).frame(width: 70, alignment: .trailing)
         }
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .issueContextMenu(model, entry.issueId)
     }
 
     /// Списание, сделанное прямо в YouTrack: только просмотр, править его пока можно в самом YouTrack.
@@ -416,7 +350,7 @@ struct LogView: View {
             Text(verbatim: "—").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: item.issueId).font(.system(size: 11.5, design: .monospaced))
+                IssueIDLink(model: model, id: item.issueId)
                 if !item.text.isEmpty {
                     Text(verbatim: item.text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
@@ -427,6 +361,8 @@ struct LogView: View {
                 .help("Списано напрямую в YouTrack. Изменить или удалить его можно там.")
         }
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .issueContextMenu(model, item.issueId)
     }
 
     private func editor(_ entry: LogEntry) -> some View {

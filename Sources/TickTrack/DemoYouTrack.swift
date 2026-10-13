@@ -45,8 +45,17 @@ actor DemoYouTrack: YouTrackAPI {
         if query.hasPrefix("for: me") {
             return issues.filter { ["ATL-1501", "ATL-1520", "VEG-214"].contains($0.idReadable) }
         }
-        let q = query.lowercased()
-        return Array(issues.filter { $0.idReadable.lowercased().contains(q) || $0.summary.lowercased().contains(q) }.prefix(top))
+        // Фильтр «Моих проектов» понимаем упрощённо: `project: {A}, {B} текст`.
+        var text = query
+        var projects: [String] = []
+        if let match = query.firstMatch(of: /^project: ((?:\{[^}]+\}(?:, )?)+) ?/) {
+            projects = match.1.split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "{} ")) }
+            text = String(query[match.range.upperBound...])
+        }
+        let q = text.lowercased()
+        return Array(issues.filter {
+            ($0.idReadable.lowercased().contains(q) || $0.summary.lowercased().contains(q)) && IssueQuery.isInProjects($0, projects)
+        }.prefix(top))
     }
 
     func issue(id: String) async throws -> Issue {

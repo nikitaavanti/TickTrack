@@ -66,6 +66,7 @@ extension AppModel {
         connection = .unknown
         clearSearchCache()
         unavailableIssues = []
+        projects = []
         planIssuesRefreshedAt = .distantPast
     }
 
@@ -97,9 +98,9 @@ extension AppModel {
         inProgressLoading = true
         defer { inProgressLoading = false }
         do {
-            let list = try await api.searchIssues(query: settings.inProgressQuery, top: 50)
+            let list = try await api.searchIssues(query: IssueQuery.restricted(settings.inProgressQuery, projects: settings.myProjects), top: 50)
             remember(list)
-            inProgress = list
+            inProgress = list.filter { IssueQuery.isInProjects($0, settings.myProjects) }
             save()
         } catch {
             // Подсказки «в работе» необязательны: без сети просто не показываем их.
@@ -113,27 +114,50 @@ extension AppModel {
         }
     }
 
-    /// Поиск по всем проектам. Свежие результаты берутся из кэша, без сети — поиск по известным задачам.
-    func searchIssues(_ text: String) async -> [Issue] {
-        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Поиск в «Моих проектах» (или во всех, если они не выбраны, если `everywhere` или если введён точный ID).
+    /// Свежие результаты берутся из кэша, без сети — поиск по известным задачам.
+    func searchIssues(_ text: String, everywhere: Bool = false) async -> [Issue] {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return [] }
+        let projects = everywhere ? [] : settings.myProjects
+        let query = IssueQuery.search(text, projects: projects)
         let key = query.lowercased()
-        guard !key.isEmpty else { return [] }
         if let cached = cachedSearch(key) { return cached }
-        guard let api else { return localSearch(key) }
+        guard let api else { return localSearch(text.lowercased(), projects: projects) }
         do {
             let found = try await api.searchIssues(query: query, top: 20)
             remember(found)
             storeSearch(key, found)
             return found
         } catch {
-            return localSearch(key)
+            return localSearch(text.lowercased(), projects: projects)
         }
     }
 
-    private func localSearch(_ key: String) -> [Issue] {
-        state.issues.values
+    /// Поиск ограничен «Моими проектами»: тогда под результатами можно поискать везде.
+    func isSearchLimited(_ text: String) -> Bool {
+        !settings.myProjects.isEmpty && !IssueQuery.isIssueId(text)
+    }
+
+    private func localSearch(_ key: String, projects: [String]) -> [Issue] {
+        let exactId = IssueQuery.isIssueId(key)
+        return state.issues.values
             .filter { $0.idReadable.lowercased().contains(key) || $0.summary.lowercased().contains(key) || $0.projectName.lowercased().contains(key) }
+            .filter { exactId || IssueQuery.isInProjects($0, projects) }
             .sorted { $0.idReadable < $1.idReadable }
+    }
+
+    /// Проекты для новой задачи: только «Мои проекты», если они выбраны.
+    var projectsForNewIssue: [Project] {
+        let mine = settings.myProjects
+        guard !mine.isEmpty else { return projects }
+        return projects.filter { project in mine.contains { $0.caseInsensitiveCompare(project.shortName) == .orderedSame } }
+    }
+
+    /// «Мои проекты» поменялись: поиск и подсказки «в работе» нужно пересобрать.
+    func myProjectsChanged() {
+        clearSearchCache()
+        Task { await loadInProgress(force: true) }
     }
 
     var defaultProjectId: String? {

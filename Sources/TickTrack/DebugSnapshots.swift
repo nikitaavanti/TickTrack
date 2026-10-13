@@ -16,7 +16,6 @@ enum DebugSnapshots {
             model.remember(found)
             let ids = ["ATL-1482", "VEG-219", "ORG-3"]
 
-            render(MorningView(model: model, close: {}), "1-morning", folder)
             model.beginDay(plan: ids)
             render(StartWorkView(model: model, close: {}), "2-start", folder)
             render(MenuView(model: model), "3-menu-idle", folder)
@@ -24,6 +23,12 @@ enum DebugSnapshots {
             model.startIssue("ATL-1482", at: Date().addingTimeInterval(-42 * 60))
             model.startIssue("VEG-219")
             render(MenuView(model: model), "4-menu-tracking", folder)
+            // Длинный план на низком экране: список задач прокручивается, команды ниже на месте.
+            let saved = model.state.plan
+            let long = Array(Set(saved + model.pickableIssues().map(\.idReadable))).sorted()
+            model.mutateState { $0.plan = long }
+            render(MenuView(model: model).environment(\.menuMaxHeight, 700), "4b-menu-long", folder)
+            model.mutateState { $0.plan = saved }
             render(CardStackView(model: model), "5-card", folder)
             if let draft = model.state.drafts.first { model.commitDraft(draft, comment: "Анализ: разобрал замечания", type: .analysis) }
             await model.sync()
@@ -43,6 +48,7 @@ enum DebugSnapshots {
             render(CreateIssueView(model: model, prefill: "Созвон по бонусам", fromPlan: false, close: {}), "10-create", folder)
             model.idlePrompt = IdlePrompt(start: Date().addingTimeInterval(-20 * 60), end: Date(), issueId: "VEG-219")
             render(IdleReturnView(model: model, prompt: model.idlePrompt!, close: {}), "11-idle", folder)
+            await model.loadProjects()
             render(SettingsView(model: model, close: {}), "12-settings", folder)
             render(AboutView(), "13-about", folder)
             NSApp.terminate(nil)

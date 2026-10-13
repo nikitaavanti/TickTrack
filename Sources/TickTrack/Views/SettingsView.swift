@@ -20,13 +20,14 @@ struct SettingsView: View {
                         connectionStatus
                     }
                 }
+                MyProjectsSection(model: model)
                 Section("Учёт времени") {
                     Toggle("Автопауза при бездействии", isOn: $settings.autopauseEnabled)
                     Stepper("Бездействие дольше \(settings.autopauseMinutes) мин", value: $settings.autopauseMinutes, in: 1...120)
                     Toggle("Напоминать о забытом старте", isOn: $settings.forgotEnabled)
                     Stepper("Если работаю без учёта \(settings.forgotMinutes) мин", value: $settings.forgotMinutes, in: 1...120)
                         .disabled(!settings.forgotEnabled)
-                    Toggle("Показывать «Доброе утро» само", isOn: $settings.morningEnabled)
+                    Toggle("Открывать начало дня само", isOn: $settings.morningEnabled)
                     DatePicker("Время", selection: morningTime, displayedComponents: .hourAndMinute)
                         .disabled(!settings.morningEnabled)
                 }
@@ -131,5 +132,89 @@ struct HotKeyRecorder: View {
         monitor = nil
         if recording { HotKeyCenter.shared.register(shortcut) }
         recording = false
+    }
+}
+
+/// «Мои проекты»: поиск, подсказки «в работе» и новые задачи — только в них.
+private struct MyProjectsSection: View {
+    let model: AppModel
+
+    @State private var filter = ""
+    /// Какие проекты были отмечены при открытии настроек: они стоят сверху. Порядок не меняется на ходу,
+    /// иначе строка уезжала бы из-под курсора при клике.
+    @State private var pinned: [String] = []
+    @State private var loading = true
+
+    private var mine: [String] { model.settings.myProjects }
+
+    private func isMine(_ project: Project) -> Bool {
+        mine.contains { $0.caseInsensitiveCompare(project.shortName) == .orderedSame }
+    }
+
+    /// Отмеченные сверху, дальше по алфавиту; строка фильтра ищет по названию и короткому имени.
+    private var shown: [Project] {
+        let key = filter.trimmingCharacters(in: .whitespaces).lowercased()
+        let list = key.isEmpty ? model.projects : model.projects.filter {
+            $0.name.lowercased().contains(key) || $0.shortName.lowercased().contains(key)
+        }
+        let isPinned = { (project: Project) in pinned.contains { $0.caseInsensitiveCompare(project.shortName) == .orderedSame } }
+        return list.filter(isPinned) + list.filter { !isPinned($0) }
+    }
+
+    var body: some View {
+        Section {
+            if model.projects.isEmpty {
+                Group {
+                    if !model.settings.isConfigured {
+                        Text("Проекты появятся после подключения к YouTrack.")
+                    } else if loading {
+                        Text("Загружаем проекты…")
+                    } else {
+                        Text("Не удалось загрузить проекты. Проверьте подключение.")
+                    }
+                }
+                .foregroundStyle(.secondary)
+            } else {
+                TextField("Найти проект", text: $filter, prompt: Text("Найти проект: название или код"))
+                    .labelsHidden()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(shown) { project in
+                            Toggle(isOn: Binding(get: { isMine(project) }, set: { set(project, $0) })) {
+                                HStack(spacing: 6) {
+                                    Text(verbatim: project.name)
+                                    if project.shortName != project.name {
+                                        Text(verbatim: project.shortName).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 150)
+            }
+        } header: {
+            Text("Мои проекты")
+        } footer: {
+            Text(mine.isEmpty
+                 ? "Не выбрано — поиск идёт по всем проектам."
+                 : "Поиск, подсказки «в работе» и новые задачи — только в отмеченных проектах (\(mine.count)). Задача по точному ID находится в любом проекте.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task(id: model.settings.isConfigured) {
+            loading = true
+            await model.loadProjects()
+            loading = false
+        }
+        .onAppear { pinned = mine }
+    }
+
+    private func set(_ project: Project, _ on: Bool) {
+        var list = mine.filter { $0.caseInsensitiveCompare(project.shortName) != .orderedSame }
+        if on { list.append(project.shortName) }
+        model.settings.myProjects = list
+        model.myProjectsChanged()
     }
 }

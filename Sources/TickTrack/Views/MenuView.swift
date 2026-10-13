@@ -4,9 +4,11 @@ import TickTrackCore
 /// Пересоздаёт меню при каждом открытии: поиск закрыт, фокус на меню.
 struct MenuRoot: View {
     let model: AppModel
+    let layout: MenuLayout
 
     var body: some View {
         MenuView(model: model).id(model.menuSession)
+            .environment(\.menuMaxHeight, layout.maxHeight)
     }
 }
 
@@ -19,6 +21,10 @@ struct MenuView: View {
     @State private var query = ""
     @State private var results: [Issue] = []
     @FocusState private var focus: Focus?
+    @Environment(\.menuMaxHeight) private var maxHeight
+    /// Высота всего меню и видимой части списка задач — по ним считается, сколько места остаётся списку.
+    @State private var menuHeight: CGFloat = 0
+    @State private var planHeight: CGFloat = 0
 
     private var state: TrackerState { model.state }
 
@@ -54,8 +60,9 @@ struct MenuView: View {
             footer
         }
         .padding(6)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { menuHeight = $0 }
         .frame(width: MenuBarController.width)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+        .glassEffect(.regular, in: .rect(cornerRadius: MenuBarController.cornerRadius))
         .focusable()
         .focused($focus, equals: .menu)
         .focusEffectDisabled()
@@ -70,11 +77,13 @@ struct MenuView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     StatusDot(indicator: .running)
-                    Text(verbatim: current.issueId).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(.secondary)
+                    IssueIDLink(model: model, id: current.issueId).foregroundStyle(.secondary)
                     Spacer()
-                    Text(verbatim: Fmt.hm(model.elapsedMinutes)).font(.system(size: 15, design: .monospaced)).monospacedDigit()
+                    BlinkingTime(minutes: model.elapsedMinutes, colonVisible: Int(model.now.timeIntervalSince(current.start)) % 2 == 0)
+                        .font(.system(size: 15, design: .monospaced)).monospacedDigit()
                 }
                 Text(verbatim: model.title(of: current.issueId)).font(.system(size: 13.5, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                    .issueContextMenu(model, current.issueId)
                 Text("Идёт учёт с \(Fmt.clock(current.start)) · к списанию \(Fmt.hm(model.billableNow))")
                     .font(.system(size: 11.5)).foregroundStyle(.secondary)
             }
@@ -130,17 +139,45 @@ struct MenuView: View {
             Text("Список пуст. Добавьте задачу через поиск ниже.")
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 4)
         }
-        ForEach(Array(state.plan.enumerated()), id: \.element) { index, id in
-            let spent = model.spentToday(id)
-            MenuRow(
-                mark: state.current?.issueId == id ? "✓" : "",
-                title: Text(verbatim: model.title(of: id).isEmpty ? id : model.title(of: id)),
-                subtitle: id + (model.issue(id)?.projectName.isEmpty == false ? " · " + model.issue(id)!.projectName : ""),
-                trailing: spent > 0 ? Fmt.hm(spent) : nil,
-                shortcut: index < 9 ? String(index + 1) : nil,
-                bold: state.current?.issueId == id
-            ) { switchTo(id) }
+        // Длинный план прокручивается, а шапка и команды ниже остаются на экране.
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 1) {
+                    ForEach(Array(state.plan.enumerated()), id: \.element) { index, id in
+                        let spent = model.spentToday(id)
+                        MenuRow(
+                            mark: state.current?.issueId == id ? "✓" : "",
+                            title: Text(verbatim: model.title(of: id).isEmpty ? id : model.title(of: id)),
+                            subtitle: id + (model.issue(id)?.projectName.isEmpty == false ? " · " + model.issue(id)!.projectName : ""),
+                            issueLink: (model, id),
+                            trailing: spent > 0 ? Fmt.hm(spent) : nil,
+                            shortcut: index < 9 ? String(index + 1) : nil,
+                            bold: state.current?.issueId == id
+                        ) {
+                            if model.isCommandClick { model.openInYouTrack(id) } else { switchTo(id) }
+                        }
+                        .issueContextMenu(model, id)
+                        .id(id)
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: planMaxHeight)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { planHeight = $0 }
+            .onAppear {
+                if let id = state.current?.issueId ?? state.startCandidate { proxy.scrollTo(id, anchor: .center) }
+            }
         }
+    }
+
+    /// Место для списка задач: всё, что осталось от экрана после остальных частей меню, но не меньше трёх строк.
+    /// Пока меню не измерено, список ограничен половиной экрана: иначе меню на миг вылезет за край
+    /// и окажется обрезанным снизу.
+    private var planMaxHeight: CGFloat {
+        guard maxHeight.isFinite else { return .infinity }
+        guard menuHeight > 0 else { return max(maxHeight / 2, 120) }
+        // Пара точек запаса: из-за округления меню не должно оказаться выше панели, иначе срежутся скруглённые углы.
+        return max(maxHeight - (menuHeight - planHeight) - 2, 120)
     }
 
     // MARK: - Поиск
@@ -259,6 +296,22 @@ struct MenuView: View {
         case .notStarted, .ended: run { model.startDay() }
         case .paused, .idle: if state.startCandidate != nil { run(model.resume) }
         case .tracking: break
+        }
+    }
+}
+
+/// Таймер `ч:мм`, у которого раз в секунду мигает двоеточие: видно, что отсчёт идёт.
+/// Двоеточие становится прозрачным, а не пропадает, чтобы цифры не сдвигались.
+private struct BlinkingTime: View {
+    let minutes: Int
+    let colonVisible: Bool
+
+    var body: some View {
+        let parts = Fmt.hm(minutes).split(separator: ":", maxSplits: 1).map(String.init)
+        HStack(spacing: 0) {
+            Text(verbatim: parts.first ?? "")
+            Text(verbatim: ":").opacity(colonVisible ? 1 : 0)
+            Text(verbatim: parts.count > 1 ? parts[1] : "")
         }
     }
 }

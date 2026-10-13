@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SwiftUI
 
 /// «О программе TickTrack».
@@ -20,9 +21,7 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 96, height: 96)
+            AboutAnimation(size: 96)
             Text(verbatim: "TickTrack").font(.title2.weight(.semibold))
             Text(verbatim: version)
                 .font(.callout).foregroundStyle(.secondary)
@@ -41,4 +40,77 @@ struct AboutView: View {
         .padding(.vertical, 24)
         .frame(width: 320)
     }
+}
+
+/// Анимация вместо иконки в «О программе»: кадры из `AboutAnimation.png` (APNG) в ресурсах приложения.
+/// Без файла (запуск через `swift run`) и при «Уменьшить движение» — обычная иконка приложения.
+private struct AboutAnimation: View {
+    let size: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if !reduceMotion, let animation = Self.animation {
+                AnimationLayer(animation: animation)
+                    .clipShape(.rect(cornerRadius: size * 0.22))
+            } else {
+                Image(nsImage: NSApp.applicationIconImage).resizable()
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    /// Готовится один раз, при первом открытии окна: декодируется за доли секунды.
+    private static let animation = load()
+
+    /// Кадры и анимация смены кадров.
+    private static func load() -> CAKeyframeAnimation? {
+        guard let url = Bundle.main.url(forResource: "AboutAnimation", withExtension: "png"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        var frames: [CGImage] = []
+        var durations: [Double] = []
+        for i in 0..<CGImageSourceGetCount(source) {
+            guard let image = CGImageSourceCreateImageAtIndex(source, i, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary) else { continue }
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [CFString: Any]
+            let png = properties?[kCGImagePropertyPNGDictionary] as? [CFString: Any]
+            let delay = png?[kCGImagePropertyAPNGUnclampedDelayTime] as? Double ?? png?[kCGImagePropertyAPNGDelayTime] as? Double
+            frames.append(image)
+            durations.append(max(delay ?? 0.04, 0.02))
+        }
+        guard frames.count > 1 else { return nil }
+        let total = durations.reduce(0, +)
+        var start = 0.0
+        var keyTimes: [NSNumber] = []
+        for duration in durations {
+            keyTimes.append(NSNumber(value: start / total))
+            start += duration
+        }
+        let animation = CAKeyframeAnimation(keyPath: "contents")
+        animation.values = frames
+        animation.keyTimes = keyTimes
+        animation.calculationMode = .discrete
+        animation.duration = total
+        animation.repeatCount = .infinity
+        animation.isRemovedOnCompletion = false
+        return animation
+    }
+}
+
+/// Слой с покадровой анимацией. Её крутит Core Animation, а не SwiftUI: так она играет сразу,
+/// даже если окно открылось у неактивного приложения и SwiftUI не перерисовывает его до первого клика.
+private struct AnimationLayer: NSViewRepresentable {
+    let animation: CAKeyframeAnimation
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        let layer = view.layer!
+        layer.contentsGravity = .resizeAspect
+        layer.contents = animation.values?.first
+        layer.add(animation, forKey: "frames")
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

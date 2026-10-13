@@ -19,8 +19,21 @@ struct MenuRowStyle: ButtonStyle {
                 .contentShape(Rectangle())
                 .foregroundStyle(hovering ? Color.white : Color.primary)
                 .background(RoundedRectangle(cornerRadius: 6).fill(hovering ? Color.accentColor : .clear))
+                .environment(\.menuRowHighlighted, hovering)
                 .onHover { hovering = $0 }
         }
+    }
+}
+
+private struct MenuRowHighlightedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Строка меню подсвечена: текст в ней белый, и ссылки тоже.
+    var menuRowHighlighted: Bool {
+        get { self[MenuRowHighlightedKey.self] }
+        set { self[MenuRowHighlightedKey.self] = newValue }
     }
 }
 
@@ -31,6 +44,8 @@ struct MenuRow: View {
     var title: Text
     /// `ID · проект` у задач — моноширинным шрифтом.
     var subtitle: String?
+    /// Задача, ID которой в начале `subtitle` — ссылка на неё в YouTrack.
+    var issueLink: (model: AppModel, id: String)?
     /// Пояснение к команде — обычным шрифтом.
     var hint: LocalizedStringKey?
     var trailing: String?
@@ -53,7 +68,15 @@ struct MenuRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     title.fontWeight(bold ? .semibold : .regular).foregroundStyle(tint ?? .primary).lineLimit(1)
                     if let subtitle {
-                        Text(verbatim: subtitle).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                        if let issueLink, subtitle.hasPrefix(issueLink.id) {
+                            HStack(spacing: 0) {
+                                IssueIDLink(model: issueLink.model, id: issueLink.id, font: .system(size: 10.5, design: .monospaced))
+                                Text(verbatim: String(subtitle.dropFirst(issueLink.id.count))).foregroundStyle(.secondary)
+                            }
+                            .font(.system(size: 10.5, design: .monospaced)).lineLimit(1)
+                        } else {
+                            Text(verbatim: subtitle).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                     if let hint {
                         Text(hint).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
@@ -153,8 +176,12 @@ struct IssueSearchResults: View {
     var visibleRows: Int?
     let onPick: (Issue) -> Void
     var onCreate: ((String) -> Void)?
+    /// Задача, которую не показываем в результатах (например, текущая в «Забыл переключиться»).
+    var excluding: String?
 
     @State private var loading = false
+    /// Искать во всех проектах, а не только в «Моих» — до следующего открытия поиска.
+    @State private var everywhere = false
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -163,7 +190,13 @@ struct IssueSearchResults: View {
             if loading && results.isEmpty {
                 ProgressView().controlSize(.small).padding(6)
             } else if results.isEmpty {
-                Text("В YouTrack ничего не найдено. Проверьте ID или формулировку.")
+                Group {
+                    if model.isSearchLimited(trimmed) && !everywhere {
+                        Text("В ваших проектах ничего не найдено. Проверьте формулировку или поищите во всех проектах.")
+                    } else {
+                        Text("В YouTrack ничего не найдено. Проверьте ID или формулировку.")
+                    }
+                }
                     .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 6)
             } else {
                 let shown = Array(results.prefix(limit))
@@ -175,13 +208,20 @@ struct IssueSearchResults: View {
                     rows(shown)
                 }
             }
+            if !trimmed.isEmpty, model.isSearchLimited(trimmed) {
+                if everywhere {
+                    MenuRow(icon: "line.3.horizontal.decrease.circle", title: Text("Искать только в моих проектах")) { everywhere = false }
+                } else {
+                    MenuRow(icon: "globe", title: Text("Искать во всех проектах")) { everywhere = true }
+                }
+            }
             if let onCreate, !trimmed.isEmpty {
                 MenuRow(icon: "plus", title: Text("Создать «\(Fmt.short(trimmed, 30))» в YouTrack"), tint: .accentColor) {
                     onCreate(trimmed)
                 }
             }
         }
-        .task(id: trimmed) {
+        .task(id: "\(everywhere)|\(trimmed)") {
             guard !trimmed.isEmpty else {
                 results = []
                 loading = false
@@ -191,9 +231,9 @@ struct IssueSearchResults: View {
             defer { loading = false }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            let found = await model.searchIssues(trimmed)
+            let found = await model.searchIssues(trimmed, everywhere: everywhere)
             guard !Task.isCancelled else { return }
-            results = found
+            results = found.filter { $0.idReadable != excluding }
         }
     }
 
@@ -231,6 +271,7 @@ struct IssuePicker: View {
 
 /// Строка задачи в списках окон.
 struct IssueLine: View {
+    let model: AppModel
     let id: String
     let title: String
     /// Задачи нет в YouTrack или к ней нет доступа: вместо названия — пояснение.
@@ -238,7 +279,7 @@ struct IssueLine: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(verbatim: id).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(.secondary).frame(width: 82, alignment: .leading)
+            IssueIDLink(model: model, id: id).foregroundStyle(.secondary).frame(width: 82, alignment: .leading)
             if unavailable {
                 Text("нет доступа в YouTrack").foregroundStyle(.secondary).lineLimit(1)
             } else {
@@ -268,4 +309,52 @@ func normText(_ model: AppModel, showingNorm: Bool = false) -> Text {
         : Text("\(model.normPercentToday)\u{00A0}% нормы")
     guard model.normRemainingToday > 0 else { return percent }
     return percent + Text(" · ещё ") + Text(verbatim: Fmt.hm(model.normRemainingToday))
+}
+
+/// ID задачи — ссылка на неё в YouTrack: цветом ссылки, при наведении подчёркивается, клик открывает задачу в браузере.
+/// Без адреса сервера — обычный текст.
+struct IssueIDLink: View {
+    let model: AppModel
+    let id: String
+    var font: Font = .system(size: 11.5, design: .monospaced)
+
+    @State private var hovering = false
+    @Environment(\.menuRowHighlighted) private var rowHighlighted
+
+    var body: some View {
+        if model.issueURL(id) != nil {
+            // Цветом ссылки, а не серым: иначе не догадаться, что по ID можно кликнуть.
+            // В подсвеченной строке меню — белым, как остальной текст.
+            Text(verbatim: id).font(font)
+                .foregroundStyle(rowHighlighted ? Color.white : Color(nsColor: .linkColor))
+                .underline(hovering)
+                .onHover { hovering = $0 }
+                .pointerStyle(.link)
+                // Приоритетнее строки-кнопки, внутри которой стоит ID: клик по ID открывает задачу, а не переключает.
+                .highPriorityGesture(TapGesture().onEnded { model.openInYouTrack(id) })
+                .help("Открыть в YouTrack")
+        } else {
+            Text(verbatim: id).font(font)
+        }
+    }
+}
+
+/// Пункты контекстного меню задачи.
+struct IssueMenuItems: View {
+    let model: AppModel
+    let id: String
+
+    var body: some View {
+        let hasLink = model.issueURL(id) != nil
+        Button("Открыть в YouTrack") { model.openInYouTrack(id) }.disabled(!hasLink)
+        Button("Скопировать ID и заголовок") { model.copyIssueWithTitle(id) }
+        Button("Скопировать ссылку") { model.copyIssueLink(id) }.disabled(!hasLink)
+    }
+}
+
+extension View {
+    /// Правый клик по задаче: открыть её в YouTrack или скопировать.
+    func issueContextMenu(_ model: AppModel, _ id: String) -> some View {
+        contextMenu { IssueMenuItems(model: model, id: id) }
+    }
 }

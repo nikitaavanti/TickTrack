@@ -268,11 +268,18 @@ final class AppModel {
         if committed { syncSoon() }
     }
 
-    /// «Начать рабочий день». План уже собран (при запуске или раньше сегодня) — сразу выбор первой задачи,
-    /// без «Доброго утра». Плана нет — «Доброе утро». Автопоказ по времени день не начинает: это делает пользователь.
+    /// «Начать рабочий день». План уже собран (при запуске или раньше сегодня) — сразу выбор первой задачи.
+    /// Плана нет — сначала «План на день», после него день начинается и открывается выбор задачи.
+    /// Автопоказ по времени день сам не начинает: это делает пользователь.
     func startDay(automatically: Bool = false) {
         guard !state.plan.isEmpty else {
-            openMorning()
+            reminder = nil
+            openPlan(then: { [weak self] in
+                // Окно закрыли, ничего не добавив, — день не начинаем.
+                guard let self, !state.plan.isEmpty else { return }
+                beginDay(plan: state.plan)
+                openStartWork()
+            })
             return
         }
         closeMenu()
@@ -332,8 +339,9 @@ final class AppModel {
         save()
     }
 
-    func reassign(lastMinutes minutes: Int, to id: String) {
-        apply { state, config in state.reassign(lastMinutes: minutes, to: id, now: Date(), config: config) }
+    /// `asOf` — когда открыли окно «Забыл переключиться»: от этого момента считаются последние минуты.
+    func reassign(lastMinutes minutes: Int, to id: String, asOf: Date) {
+        apply { state, config in state.reassign(lastMinutes: minutes, to: id, asOf: asOf, config: config) }
         toast("Перенесено", "\(minutes) мин → \(id). Учёт идёт по нему.")
     }
 
@@ -525,6 +533,7 @@ final class AppModel {
         if backdated { toast("Учёт начат задним числом", "\(id) · с \(Fmt.clock(reminder.since))") }
     }
 
+    /// Автопоказ начала дня в заданное время (настройка «Открывать начало дня само»).
     private func checkMorning() {
         guard settings.morningEnabled, state.phase == .notStarted, state.current == nil,
               !windows.hasOpenWindow, awaySince == nil else { return }
@@ -556,6 +565,10 @@ final class AppModel {
     }
 
     // MARK: - Уведомления
+
+    func dismissToast(_ toast: Toast) {
+        toasts.removeAll { $0.id == toast.id }
+    }
 
     func toast(_ title: String, _ text: String, isError: Bool = false) {
         let toast = Toast(title: title, text: text, isError: isError)

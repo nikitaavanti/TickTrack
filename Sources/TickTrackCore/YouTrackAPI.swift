@@ -65,15 +65,28 @@ public struct YouTrackClient: YouTrackAPI {
 
     /// `nil`, если адрес или токен пустые.
     public init?(server: String, token: String, session: URLSession = .shared) {
-        var address = server.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !address.isEmpty, !token.isEmpty else { return nil }
-        if !address.contains("://") { address = "https://" + address }
-        while address.hasSuffix("/") { address.removeLast() }
-        guard let url = URL(string: address), url.host() != nil else { return nil }
+        guard !token.isEmpty, let url = Self.serverURL(server) else { return nil }
         self.baseURL = url
         self.token = token
         self.session = session
+    }
+
+    /// Адрес сервера из настроек: без схемы — `https://`, без завершающих `/`. `nil`, если адрес пустой или не разбирается.
+    public static func serverURL(_ server: String) -> URL? {
+        var address = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty else { return nil }
+        if !address.contains("://") { address = "https://" + address }
+        while address.hasSuffix("/") { address.removeLast() }
+        guard let url = URL(string: address), url.host() != nil else { return nil }
+        return url
+    }
+
+    /// Страница задачи в веб-интерфейсе YouTrack: `<сервер>/issue/VEG-4499`.
+    public static func issueURL(server: String, issueId: String) -> URL? {
+        let id = issueId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty, let base = serverURL(server) else { return nil }
+        return base.appending(path: "issue").appending(path: id)
     }
 
     public func currentUser() async throws -> YouTrackUser {

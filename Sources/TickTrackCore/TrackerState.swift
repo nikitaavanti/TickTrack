@@ -82,11 +82,6 @@ public struct TrackerState: Codable, Sendable {
         return plan.first
     }
 
-    /// Что показать в «Вчера в плане» окна «Доброе утро».
-    public var morningCarryOver: [String] {
-        phase == .ended || !plan.isEmpty ? plan : previousPlan
-    }
-
     public func elapsedMinutes(at now: Date) -> Int {
         current.map { TimeMath.minutes(from: $0.start, to: now) } ?? 0
     }
@@ -218,9 +213,14 @@ public struct TrackerState: Codable, Sendable {
     }
 
     /// «Я забыл переключиться»: последние `minutes` минут переносятся на `issueId`.
-    public mutating func reassign(lastMinutes minutes: Int, to issueId: String, now: Date, config: TrackerConfig) -> [TrackerEvent] {
+    /// Минуты отсчитываются от `asOf` — момента, когда открыли окно, а не когда нажали «Перенести»:
+    /// время, пока решали, тоже уходит новой задаче, а не остаётся огрызком на старой.
+    /// Выбрано всё время отрезка — переносится весь отрезок, по старой задаче не списывается ничего.
+    public mutating func reassign(lastMinutes minutes: Int, to issueId: String, asOf: Date, config: TrackerConfig) -> [TrackerEvent] {
         guard let segment = current, segment.issueId != issueId else { return [] }
-        let boundary = max(segment.start, now.addingTimeInterval(-Double(max(0, minutes)) * 60))
+        let boundary = minutes >= elapsedMinutes(at: asOf)
+            ? segment.start
+            : max(segment.start, asOf.addingTimeInterval(-Double(max(0, minutes)) * 60))
         return start(issueId: issueId, at: boundary, config: config)
     }
 
