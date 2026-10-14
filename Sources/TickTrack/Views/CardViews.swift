@@ -158,9 +158,9 @@ struct WriteOffCard: View {
         NotificationCard(closeHelp: "Закрыть и списать как есть", onClose: { finish(commit: true) }) {
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    // Справа — за какой отрезок карточка: в стопке их бывает несколько. Отсчёт — на кнопке «Списать».
+                    // Справа пусто: отсчёт — на кнопке «Списать».
                     CardHeader(title: Text(verbatim: model.title(of: draft.issueId).isEmpty ? draft.issueId : model.title(of: draft.issueId))) {
-                        Text(verbatim: "\(Fmt.clock(draft.start))–\(Fmt.clock(draft.end))")
+                        EmptyView()
                     }
                     .issueContextMenu(model, draft.issueId)
                     HStack(spacing: 0) {
