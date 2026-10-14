@@ -97,6 +97,8 @@ final class AppModel {
     /// Выход подтверждён: следующий `terminate` закрывает приложение без вопросов.
     @ObservationIgnored var quitConfirmed = false
     @ObservationIgnored var systemIsPoweringOff = false
+    /// Открытое окно «Закончили работу на сегодня?».
+    @ObservationIgnored var quitWindow: NSWindow?
     /// Что введено в висящих карточках списания.
     @ObservationIgnored var draftInputs: [UUID: DraftInput] = [:]
     /// Карточка по задаче, на которой завершили день: «Итог дня» откроется, когда по ней решат.

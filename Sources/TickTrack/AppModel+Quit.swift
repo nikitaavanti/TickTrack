@@ -26,17 +26,26 @@ extension AppModel {
             } else {
                 "Если да — покажем итог дня и\u{00A0}выйдем. Если ещё вернётесь сегодня — день останется открытым, план и\u{00A0}списания сохранятся."
             }
-            switch askQuit(details: details) {
-            case .endDay:
-                endDayAndQuit()
-                return .terminateCancel
-            case .comeBack:
-                // Как остановка учёта: день остаётся открытым, карточка появится при следующем запуске.
-                if state.current != nil { pause() }
-                return .terminateNow
-            case .cancel:
-                return .terminateCancel
-            }
+            // Выход откладываем до ответа: окно-вопрос не модальное. Модальное окно, открытое изнутри
+            // нажатия на кнопку SwiftUI («Завершить TickTrack» в меню), не получает нажатий своих кнопок.
+            askQuit(details: details)
+            return .terminateCancel
+        }
+    }
+
+    private func quitChosen(_ choice: QuitChoice) {
+        quitWindow?.orderOut(nil)
+        quitWindow = nil
+        switch choice {
+        case .endDay:
+            endDayAndQuit()
+        case .comeBack:
+            // Как остановка учёта: день остаётся открытым, карточка появится при следующем запуске.
+            if state.current != nil { pause() }
+            quitConfirmed = true
+            NSApp.terminate(nil)
+        case .cancel:
+            break
         }
     }
 
@@ -85,13 +94,16 @@ extension AppModel {
         return event.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) != nil
     }
 
-    private func askQuit(details: LocalizedStringKey) -> QuitChoice {
+    private func askQuit(details: LocalizedStringKey) {
         closeMenu()
         NSApp.activate()
-        var choice = QuitChoice.cancel
-        let window = NSWindow(contentViewController: NSHostingController(rootView: QuitDialogView(details: details) { picked in
-            choice = picked
-            NSApp.stopModal()
+        // Повторный ⌘Q, пока окно открыто, просто поднимает его.
+        if let quitWindow {
+            quitWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+        let window = NSWindow(contentViewController: NSHostingController(rootView: QuitDialogView(details: details) { [weak self] choice in
+            self?.quitChosen(choice)
         }))
         // Как системное окно предупреждения: без заголовка и кнопок окна, можно двигать за фон.
         window.styleMask = [.titled, .fullSizeContentView]
@@ -101,11 +113,11 @@ extension AppModel {
             window.standardWindowButton(button)?.isHidden = true
         }
         window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
         window.level = .modalPanel
         window.center()
-        NSApp.runModal(for: window)
-        window.orderOut(nil)
-        return choice
+        window.makeKeyAndOrderFront(nil)
+        quitWindow = window
     }
 }
 
