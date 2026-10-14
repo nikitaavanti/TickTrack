@@ -50,6 +50,45 @@ public enum TimeMath {
     }
 }
 
+/// Рабочие дни и время начала дня. Вне расписания TickTrack сам ничего не открывает и не напоминает о начале дня.
+public struct WorkSchedule: Equatable, Sendable {
+    /// Дни недели в нумерации `Calendar`: 1 — воскресенье, 2 — понедельник, … 7 — суббота.
+    public var workdays: Set<Int>
+    /// Начало рабочего дня, минуты от полуночи.
+    public var startMinutes: Int
+
+    public static let weekdays: Set<Int> = [2, 3, 4, 5, 6]
+
+    public init(workdays: Set<Int> = WorkSchedule.weekdays, startMinutes: Int = 9 * 60) {
+        self.workdays = workdays
+        self.startMinutes = startMinutes
+    }
+
+    public func isWorkday(_ date: Date, calendar: Calendar) -> Bool {
+        workdays.contains(calendar.component(.weekday, from: date))
+    }
+
+    /// Начало рабочего дня в день `date`.
+    public func start(on date: Date, calendar: Calendar) -> Date {
+        calendar.startOfDay(for: date).addingTimeInterval(TimeInterval(startMinutes * 60))
+    }
+
+    /// Рабочий день и его начало уже наступило.
+    public func hasBegun(at date: Date, calendar: Calendar) -> Bool {
+        isWorkday(date, calendar: calendar) && date >= start(on: date, calendar: calendar)
+    }
+}
+
+/// Правила окна «Вы вернулись».
+public enum IdleRules {
+    /// С какого простоя в окне сразу выбрано «Завершить рабочий день»: скорее всего, человек ушёл домой.
+    public static let endDaySuggestionMinutes = 120
+
+    public static func suggestsEndingDay(idleMinutes: Int) -> Bool {
+        idleMinutes >= endDaySuggestionMinutes
+    }
+}
+
 /// Дневная норма списаний.
 public struct DailyNorm: Equatable, Sendable {
     /// Норма в минутах, шаг — полчаса.

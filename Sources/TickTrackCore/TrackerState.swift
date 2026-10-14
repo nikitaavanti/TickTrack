@@ -25,6 +25,8 @@ public enum IdleChoice: Equatable, Sendable {
     case otherIssue(String)
     case keepCurrent
     case discard
+    /// Завершить рабочий день в начале простоя.
+    case endDay
 }
 
 /// Всё состояние учёта, которое переживает перезапуск. Сохраняется целиком в JSON.
@@ -212,6 +214,20 @@ public struct TrackerState: Codable, Sendable {
         return result
     }
 
+    /// Учёт шёл, а пользователь ушёл и вернулся уже в другой календарный день: день не завершили.
+    public func isForgottenDay(lastSeen: Date, now: Date, calendar: Calendar) -> Bool {
+        current != nil && lastSeen < now && !calendar.isDate(lastSeen, inSameDayAs: now)
+    }
+
+    /// Забытый день завершается в момент `lastSeen`, когда пользователя видели в последний раз, — ночь не списывается.
+    /// Новый день начинается как обычно: план уходит во «вчерашний», день не начат.
+    public mutating func endForgottenDay(lastSeen: Date, now: Date, config: TrackerConfig) -> [TrackerEvent] {
+        guard isForgottenDay(lastSeen: lastSeen, now: now, calendar: config.calendar) else { return [] }
+        let result = endDay(at: lastSeen, config: config)
+        rollOver(now: now, calendar: config.calendar)
+        return result
+    }
+
     /// «Я забыл переключиться»: последние `minutes` минут переносятся на `issueId`.
     /// Минуты отсчитываются от `asOf` — момента, когда открыли окно, а не когда нажали «Перенести»:
     /// время, пока решали, тоже уходит новой задаче, а не остаётся огрызком на старой.
@@ -229,6 +245,9 @@ public struct TrackerState: Codable, Sendable {
         from idleStart: Date, to returnedAt: Date, choice: IdleChoice, continueTracking: Bool, config: TrackerConfig
     ) -> [TrackerEvent] {
         guard let segment = current else { return [] }
+        if choice == .endDay {
+            return endDay(at: min(idleStart, returnedAt), config: config)
+        }
         if choice == .keepCurrent {
             return continueTracking ? [] : pause(at: returnedAt, config: config)
         }

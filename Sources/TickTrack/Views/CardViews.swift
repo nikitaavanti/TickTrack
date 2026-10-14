@@ -146,6 +146,10 @@ struct WriteOffCard: View {
                         IssueIDLink(model: model, id: draft.issueId, font: .system(size: 12).monospacedDigit())
                         Text(verbatim: " · ").foregroundStyle(.secondary)
                         Text("списать \(Fmt.hm(draft.minutes))").fontWeight(.semibold)
+                        // Отрезок завершённого задним числом дня — видно, что он не сегодняшний.
+                        if let day = Fmt.pastDay(draft.start) {
+                            Text(" · за \(day)").foregroundStyle(.secondary)
+                        }
                     }
                     .font(.system(size: 12)).monospacedDigit().lineLimit(1)
                 }
@@ -228,23 +232,29 @@ struct ReminderCard: View {
                 message.font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
             }
         } actions: {
-            HStack(spacing: 4) {
-                Button("Напомнить 10 мин", action: model.snoozeReminder)
-                    .help("Напомнить через 10 мин")
+            // Подписи длинные: в один ряд три кнопки не помещаются, поэтому «Напомнить» — отдельным рядом.
+            VStack(spacing: 4) {
                 switch reminder.kind {
                 case .dayNotStarted:
-                    Button("Начать рабочий день") { model.startDay() }.buttonStyle(.glassProminent)
+                    Button { model.startDay() } label: { Text("Начать рабочий день").frame(maxWidth: .infinity) }
+                        .buttonStyle(.glassProminent)
                 case .paused, .untracked:
                     if reminder.issueId != nil {
-                        Button("Учёт с этой минуты") { model.startFromReminder(backdated: false) }
-                        Button("Учёт с \(Fmt.clock(reminder.since))") { model.startFromReminder(backdated: true) }
+                        HStack(spacing: 4) {
+                            Button { model.startFromReminder(backdated: false) } label: {
+                                Text("Начать учёт сейчас").frame(maxWidth: .infinity)
+                            }
+                            Button { model.startFromReminder(backdated: true) } label: {
+                                Text("Учёт с \(Fmt.clock(reminder.since))").frame(maxWidth: .infinity)
+                            }
                             .help("Начать учёт задним числом, с \(Fmt.clock(reminder.since)), когда он остановился")
                             .buttonStyle(.glassProminent)
+                        }
                     }
                 }
+                Button(action: model.snoozeReminder) { Text("Напомнить через 10 минут").frame(maxWidth: .infinity) }
             }
             .controlSize(.small)
-            .fixedSize()
         }
     }
 

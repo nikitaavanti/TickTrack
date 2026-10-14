@@ -164,6 +164,66 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         #expect(state.previousPlan == ["A-1", "B-2"])
         #expect(state.status == .notStarted)
     }
+
+    @Test func idleCanEndTheDayAtIdleStart() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1"], at: at(9, 0), calendar: calendar)
+        _ = state.start(issueId: "A-1", at: at(9, 0), config: config)
+        let list = drafts(state.resolveIdle(from: at(18, 30), to: at(20, 0), choice: .endDay, continueTracking: true, config: config))
+        #expect(list.map(\.end) == [at(18, 30)])
+        #expect(state.status == .ended)
+    }
+
+    @Test func forgottenDayEndsWhenLastSeen() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1"], at: at(9, 0), calendar: calendar)
+        _ = state.start(issueId: "A-1", at: at(9, 0), config: config)
+        let list = drafts(state.endForgottenDay(lastSeen: at(18, 30), now: at(9, 10, day: 13), config: config))
+        // Ночь не списывается: отрезок кончается, когда пользователя видели в последний раз.
+        #expect(list.count == 1)
+        #expect(list[0].end == at(18, 30) && list[0].rawMinutes == 570)
+        #expect(state.current == nil)
+        #expect(state.status == .notStarted)
+        #expect(state.previousPlan == ["A-1"])
+    }
+
+    @Test func returningSameDayIsNotForgottenDay() {
+        var state = TrackerState()
+        _ = state.start(issueId: "A-1", at: at(9, 0), config: config)
+        #expect(!state.isForgottenDay(lastSeen: at(18, 30), now: at(20, 0), calendar: calendar))
+        #expect(state.endForgottenDay(lastSeen: at(18, 30), now: at(20, 0), config: config).isEmpty)
+        #expect(state.current != nil)
+    }
+
+    @Test func forgottenDayNeedsRunningTracking() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1"], at: at(9, 0), calendar: calendar)
+        #expect(!state.isForgottenDay(lastSeen: at(18, 30), now: at(9, 10, day: 13), calendar: calendar))
+    }
+}
+
+@Suite struct WorkScheduleTests {
+    private let schedule = WorkSchedule(workdays: WorkSchedule.weekdays, startMinutes: 9 * 60)
+
+    @Test func weekdaysByDefault() {
+        // 12 октября 2026 — понедельник, 16-е — пятница, 17-е — суббота, 18-е — воскресенье.
+        #expect(schedule.isWorkday(at(10, 0, day: 12), calendar: calendar))
+        #expect(schedule.isWorkday(at(10, 0, day: 16), calendar: calendar))
+        #expect(!schedule.isWorkday(at(10, 0, day: 17), calendar: calendar))
+        #expect(!schedule.isWorkday(at(10, 0, day: 18), calendar: calendar))
+    }
+
+    @Test func dayBeginsAtStartTime() {
+        #expect(!schedule.hasBegun(at: at(8, 59), calendar: calendar))
+        #expect(schedule.hasBegun(at: at(9, 0), calendar: calendar))
+        #expect(!schedule.hasBegun(at: at(12, 0, day: 17), calendar: calendar))
+        #expect(schedule.start(on: at(15, 0), calendar: calendar) == at(9, 0))
+    }
+
+    @Test func longIdleSuggestsEndingDay() {
+        #expect(!IdleRules.suggestsEndingDay(idleMinutes: 119))
+        #expect(IdleRules.suggestsEndingDay(idleMinutes: 120))
+    }
 }
 
 @Suite struct SyncBookkeepingTests {

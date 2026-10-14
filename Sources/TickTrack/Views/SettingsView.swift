@@ -21,15 +21,22 @@ struct SettingsView: View {
                     }
                 }
                 MyProjectsSection(model: model)
-                Section("Учёт времени") {
+                Section {
+                    LabeledContent("Рабочие дни") {
+                        WorkdaysPicker(selection: $settings.workdays)
+                    }
+                    DatePicker("Начало рабочего дня", selection: morningTime, displayedComponents: .hourAndMinute)
+                    Toggle("Открывать начало дня само", isOn: $settings.morningEnabled)
                     Toggle("Спрашивать о простое", isOn: $settings.autopauseEnabled)
                     Stepper("Бездействие дольше \(settings.autopauseMinutes) мин", value: $settings.autopauseMinutes, in: 1...120)
                     Toggle("Напоминать о забытом старте", isOn: $settings.forgotEnabled)
                     Stepper("Если работаю без учёта \(settings.forgotMinutes) мин", value: $settings.forgotMinutes, in: 1...120)
                         .disabled(!settings.forgotEnabled)
-                    Toggle("Открывать начало дня само", isOn: $settings.morningEnabled)
-                    DatePicker("Время", selection: morningTime, displayedComponents: .hourAndMinute)
-                        .disabled(!settings.morningEnabled)
+                } header: {
+                    Text("Учёт времени")
+                } footer: {
+                    Text("В другие дни и до начала рабочего дня TickTrack сам ничего не открывает и не напоминает о начале дня.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Списание") {
                     Stepper("Не списывать отрезки короче \(settings.minimumMinutes) мин", value: $settings.minimumMinutes, in: 0...30)
@@ -91,9 +98,40 @@ struct SettingsView: View {
             },
             set: { date in
                 let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
-                model.settings.morningTime = (parts.hour ?? 9) * 60 + (parts.minute ?? 30)
+                model.settings.morningTime = (parts.hour ?? 9) * 60 + (parts.minute ?? 0)
             }
         )
+    }
+}
+
+/// Дни недели кнопками, с понедельника.
+private struct WorkdaysPicker: View {
+    @Binding var selection: Set<Int>
+
+    /// Номера дней в `Calendar`: 2 — понедельник … 7 — суббота, 1 — воскресенье.
+    private let days: [(weekday: Int, title: LocalizedStringKey)] = [
+        (2, "Пн"), (3, "Вт"), (4, "Ср"), (5, "Чт"), (6, "Пт"), (7, "Сб"), (1, "Вс"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(days, id: \.weekday) { day in
+                let on = selection.contains(day.weekday)
+                // Как `ChipButton` в карточке списания: выбранный день закрашен.
+                Button {
+                    if on { selection.remove(day.weekday) } else { selection.insert(day.weekday) }
+                } label: {
+                    Text(day.title)
+                        .font(.system(size: 11.5))
+                        .frame(minWidth: 22)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .foregroundStyle(on ? Color.white : Color.primary)
+                        .background(Capsule().fill(on ? Color.accentColor : Color.secondary.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 }
 

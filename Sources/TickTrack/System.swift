@@ -107,6 +107,20 @@ enum Fmt {
 
     static func clock(_ date: Date) -> String { clockFormatter.string(from: date) }
 
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ru_RU")
+        f.dateFormat = "d MMMM"
+        return f
+    }()
+
+    /// «вчера» или «10 октября»; для сегодняшнего дня — nil.
+    static func pastDay(_ date: Date, calendar: Calendar = .current) -> String? {
+        if calendar.isDateInToday(date) { return nil }
+        if calendar.isDateInYesterday(date) { return "вчера" }
+        return dayFormatter.string(from: date)
+    }
+
     static func hm(_ minutes: Int) -> String { TimeMath.hm(minutes) }
 
     static func short(_ text: String, _ limit: Int) -> String {

@@ -251,7 +251,7 @@ struct IdleReturnView: View {
     let prompt: IdlePrompt
     let close: () -> Void
 
-    private enum Choice { case other, keep, discard }
+    private enum Choice { case other, keep, discard, endDay }
 
     @State private var choice: Choice = .other
     @State private var other: String
@@ -265,6 +265,9 @@ struct IdleReturnView: View {
         let candidates = model.pickableIssues(excluding: prompt.issueId).map(\.idReadable)
         let last = model.state.lastIdleIssueId.flatMap { candidates.contains($0) ? $0 : nil }
         _other = State(initialValue: last ?? model.state.plan.first { $0 != prompt.issueId } ?? candidates.first ?? "")
+        // Долго не было — скорее всего, ушёл домой.
+        let idleMinutes = TimeMath.minutes(from: prompt.start, to: prompt.end)
+        _choice = State(initialValue: IdleRules.suggestsEndingDay(idleMinutes: idleMinutes) ? .endDay : .other)
     }
 
     private var minutes: Int { TimeMath.minutes(from: prompt.start, to: model.idlePrompt?.end ?? prompt.end) }
@@ -282,8 +285,11 @@ struct IdleReturnView: View {
                 }
                 option(.keep, "Засчитать в текущую", "Время пойдёт в \(prompt.issueId)") { EmptyView() }
                 option(.discard, "Отбросить", "Учёт по \(prompt.issueId) остановится в \(Fmt.clock(prompt.start))") { EmptyView() }
+                option(.endDay, "Завершить рабочий день в \(Fmt.clock(prompt.start))", "Простой не засчитается, откроется итог дня") { EmptyView() }
             }
-            Toggle("Продолжить учёт по \(prompt.issueId)", isOn: $continueTracking).toggleStyle(.checkbox)
+            if choice != .endDay {
+                Toggle("Продолжить учёт по \(prompt.issueId)", isOn: $continueTracking).toggleStyle(.checkbox)
+            }
             HStack {
                 Spacer()
                 Button("Применить", action: apply).keyboardShortcut(.defaultAction)
@@ -320,6 +326,7 @@ struct IdleReturnView: View {
         case .other: .otherIssue(other)
         case .keep: .keepCurrent
         case .discard: .discard
+        case .endDay: .endDay
         }
         model.resolveIdle(decision, continueTracking: continueTracking)
         close()

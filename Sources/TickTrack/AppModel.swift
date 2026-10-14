@@ -135,10 +135,12 @@ final class AppModel {
         state.rollOver(now: now, calendar: calendar)
         if state.current == nil {
             state.untrackedSince = now
-        } else if settings.autopauseEnabled, let last = state.lastActivity,
-                  now.timeIntervalSince(last) >= idleThreshold, let current = state.current {
-            // Перезапуск или сбой посреди отрезка, а пользователя давно не было.
-            presentIdle(IdlePrompt(start: max(last, current.start), end: now, issueId: current.issueId))
+        } else if let last = state.lastActivity, let current = state.current {
+            // Перезапуск или сбой посреди отрезка: день могли не завершить, а пользователя могло давно не быть.
+            let dayEnded = endForgottenDay(lastSeen: last, now: now)
+            if !dayEnded, settings.autopauseEnabled, now.timeIntervalSince(last) >= idleThreshold {
+                presentIdle(IdlePrompt(start: max(last, current.start), end: now, issueId: current.issueId))
+            }
         }
         state.prune(keepingDays: 14, now: now, calendar: calendar)
         save()
@@ -154,7 +156,8 @@ final class AppModel {
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
 
-        // Плана на сегодня нет — сначала собрать его. При первом запуске — сразу после настроек.
+        // Плана на сегодня нет — сначала собрать его. При первом запуске — сразу после настроек,
+        // иначе только в рабочий день после его начала: вне расписания TickTrack сам ничего не открывает.
         let needsPlan = state.plan.isEmpty && state.current == nil
         if api == nil {
             openSettings(then: needsPlan ? { [weak self] in
@@ -163,7 +166,7 @@ final class AppModel {
         } else {
             Task { await checkConnection() }
             Task { await refreshPlanIssuesIfStale() }
-            if needsPlan { openPlan() }
+            if needsPlan, settings.schedule.hasBegun(at: now, calendar: calendar) { openPlan() }
         }
     }
 
@@ -305,9 +308,9 @@ final class AppModel {
 
     /// Сначала карточка по активной задаче, потом «Итог дня» — чтобы в итоге было и последнее списание.
     /// Если карточки нет (отрезок короткий, карточки выключены, учёт не шёл), итог открывается сразу.
-    func endDay(quitting: Bool = false) {
+    func endDay(at time: Date = Date(), quitting: Bool = false) {
         let before = Set(state.drafts.map(\.id))
-        apply { state, config in state.endDay(at: Date(), config: config) }
+        apply { state, config in state.endDay(at: time, config: config) }
         reminder = nil
         closeMenu()
         if let draft = state.drafts.last, !before.contains(draft.id) {
@@ -465,6 +468,7 @@ final class AppModel {
 
     private func userReturned(awayFrom start: Date, at end: Date) {
         guard end.timeIntervalSince(start) >= idleThreshold else { return }
+        if endForgottenDay(lastSeen: start, now: end) { return }
         guard let current = state.current else {
             // Отсчёт «без учёта» сбрасывается простоем.
             state.untrackedSince = end
@@ -474,6 +478,25 @@ final class AppModel {
         }
         guard settings.autopauseEnabled else { return }
         presentIdle(IdlePrompt(start: max(start, current.start), end: end, issueId: current.issueId))
+    }
+
+    /// День не завершили, а вернулись уже в другой день: день завершается, когда пользователя видели в последний раз.
+    /// Карточка по последнему отрезку показывается как обычно. Возвращает `true`, если день завершён.
+    private func endForgottenDay(lastSeen: Date, now: Date) -> Bool {
+        guard let issueId = state.current?.issueId else { return false }
+        var lastSeen = lastSeen
+        // С вечера висит «Вы вернулись» — простой из него тоже не списываем.
+        if let prompt = idlePrompt, prompt.issueId == issueId { lastSeen = min(lastSeen, prompt.start) }
+        guard state.isForgottenDay(lastSeen: lastSeen, now: now, calendar: calendar) else { return false }
+        if idlePrompt != nil {
+            idlePrompt = nil
+            windows.close("idle")
+        }
+        apply { state, config in state.endForgottenDay(lastSeen: lastSeen, now: now, config: config) }
+        reminder = nil
+        let day = Fmt.pastDay(lastSeen).map { $0 + " " } ?? ""
+        toast("Прошлый рабочий день завершён", "Учёт по \(issueId) остановлен \(day)в \(Fmt.clock(lastSeen))")
+        return true
     }
 
     private func presentIdle(_ prompt: IdlePrompt) {
@@ -490,6 +513,10 @@ final class AppModel {
         guard let prompt = idlePrompt else { return }
         idlePrompt = nil
         guard state.current?.issueId == prompt.issueId else { return }
+        if choice == .endDay {
+            endDay(at: prompt.start)
+            return
+        }
         apply { state, config in
             state.resolveIdle(from: prompt.start, to: prompt.end, choice: choice, continueTracking: continueTracking, config: config)
         }
@@ -505,13 +532,21 @@ final class AppModel {
             if reminder != nil { reminder = nil }
             return
         }
-        let since = state.untrackedSince ?? now
+        let kind: Reminder.Kind = state.phase == .notStarted ? .dayNotStarted : state.paused ? .paused : .untracked
+        var since = state.untrackedSince ?? now
+        if kind == .dayNotStarted {
+            // О начале дня напоминаем только по расписанию и считаем от начала рабочего дня.
+            guard settings.schedule.hasBegun(at: now, calendar: calendar) else {
+                if reminder != nil { reminder = nil }
+                return
+            }
+            since = max(since, settings.schedule.start(on: now, calendar: calendar))
+        }
         let minutes = TimeMath.minutes(from: since, to: now)
         guard minutes >= settings.forgotMinutes else {
             if reminder != nil { reminder = nil }
             return
         }
-        let kind: Reminder.Kind = state.phase == .notStarted ? .dayNotStarted : state.paused ? .paused : .untracked
         let next = Reminder(kind: kind, minutes: minutes, since: since, issueId: state.startCandidate)
         if reminder != next { reminder = next }
     }
@@ -527,13 +562,13 @@ final class AppModel {
         if backdated { toast("Учёт начат задним числом", "\(id) · с \(Fmt.clock(reminder.since))") }
     }
 
-    /// Автопоказ начала дня в заданное время (настройка «Открывать начало дня само»).
+    /// Автопоказ начала дня в рабочие дни в заданное время (настройка «Открывать начало дня само»).
     private func checkMorning() {
         guard settings.morningEnabled, state.phase == .notStarted, state.current == nil,
               !windows.hasOpenWindow, awaySince == nil else { return }
         let today = calendar.startOfDay(for: now)
-        let minutesNow = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
-        guard minutesNow >= settings.morningTime, state.lastAutoMorningDay.map({ $0 < today }) ?? true else { return }
+        guard settings.schedule.hasBegun(at: now, calendar: calendar),
+              state.lastAutoMorningDay.map({ $0 < today }) ?? true else { return }
         state.lastAutoMorningDay = today
         save()
         startDay(automatically: true)

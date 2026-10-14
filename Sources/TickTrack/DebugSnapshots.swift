@@ -37,6 +37,8 @@ enum DebugSnapshots {
             // Напоминание о забытом старте: три кнопки должны поместиться в ширину карточки.
             model.reminder = Reminder(kind: .paused, minutes: 17, since: model.now.addingTimeInterval(-17 * 60), issueId: "ATL-1482")
             render(CardStackView(model: model), "6b-reminder", folder)
+            model.reminder = Reminder(kind: .dayNotStarted, minutes: 12, since: model.now.addingTimeInterval(-12 * 60), issueId: "ATL-1482")
+            render(CardStackView(model: model), "6c-reminder-day", folder)
             model.reminder = nil
             await model.refreshExternal(force: true)
             render(LogView(model: model, close: {}), "7-log", folder)
@@ -52,6 +54,16 @@ enum DebugSnapshots {
             render(CreateIssueView(model: model, prefill: "Созвон по бонусам", fromPlan: false, close: {}), "10-create", folder)
             model.idlePrompt = IdlePrompt(start: Date().addingTimeInterval(-20 * 60), end: Date(), issueId: "VEG-219")
             render(IdleReturnView(model: model, prompt: model.idlePrompt!, close: {}), "11-idle", folder)
+            // Ушёл домой и вернулся вечером: сразу выбрано «Завершить рабочий день».
+            model.idlePrompt = IdlePrompt(start: Date().addingTimeInterval(-150 * 60), end: Date(), issueId: "VEG-219")
+            render(IdleReturnView(model: model, prompt: model.idlePrompt!, close: {}), "11b-idle-long", folder)
+            // Карточка по отрезку забытого вчера дня.
+            let yesterday = Date().addingTimeInterval(-86_400)
+            model.mutateState {
+                $0.drafts = [SegmentDraft(issueId: "ATL-1482", start: yesterday.addingTimeInterval(-3 * 3600), end: yesterday, rawMinutes: 180, minutes: 180, suggestedType: .unspecified)]
+            }
+            render(CardStackView(model: model), "11c-card-yesterday", folder)
+            model.mutateState { $0.drafts = [] }
             await model.loadProjects()
             render(SettingsView(model: model, close: {}), "12-settings", folder)
             render(AboutView(), "13-about", folder)

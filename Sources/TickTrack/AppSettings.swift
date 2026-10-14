@@ -43,8 +43,10 @@ final class AppSettings {
     var autopauseMinutes: Int { didSet { defaults.set(autopauseMinutes, forKey: Key.autopauseMinutes) } }
     var forgotEnabled: Bool { didSet { defaults.set(forgotEnabled, forKey: Key.forgotEnabled) } }
     var forgotMinutes: Int { didSet { defaults.set(forgotMinutes, forKey: Key.forgotMinutes) } }
+    /// Рабочие дни в нумерации `Calendar` (1 — воскресенье … 7 — суббота).
+    var workdays: Set<Int> { didSet { defaults.set(workdays.sorted(), forKey: Key.workdays) } }
     var morningEnabled: Bool { didSet { defaults.set(morningEnabled, forKey: Key.morningEnabled) } }
-    /// Минуты от полуночи.
+    /// Начало рабочего дня, минуты от полуночи.
     var morningTime: Int { didSet { defaults.set(morningTime, forKey: Key.morningTime) } }
 
     var minimumMinutes: Int { didSet { defaults.set(minimumMinutes, forKey: Key.minimumMinutes) } }
@@ -68,6 +70,7 @@ final class AppSettings {
             Key.autopauseMinutes: 10,
             Key.forgotEnabled: true,
             Key.forgotMinutes: 10,
+            Key.workdays: WorkSchedule.weekdays.sorted(),
             Key.morningEnabled: true,
             Key.morningTime: 9 * 60,
             Key.minimumMinutes: 2,
@@ -86,6 +89,7 @@ final class AppSettings {
         autopauseMinutes = max(1, defaults.integer(forKey: Key.autopauseMinutes))
         forgotEnabled = defaults.bool(forKey: Key.forgotEnabled)
         forgotMinutes = max(1, defaults.integer(forKey: Key.forgotMinutes))
+        workdays = Set((defaults.array(forKey: Key.workdays) as? [Int] ?? []).filter { (1...7).contains($0) })
         morningEnabled = defaults.bool(forKey: Key.morningEnabled)
         morningTime = defaults.integer(forKey: Key.morningTime)
         minimumMinutes = max(0, defaults.integer(forKey: Key.minimumMinutes))
@@ -104,6 +108,8 @@ final class AppSettings {
 
     var dailyNorm: DailyNorm { DailyNorm(minutes: dailyNormMinutes) }
 
+    var schedule: WorkSchedule { WorkSchedule(workdays: workdays, startMinutes: morningTime) }
+
     var isConfigured: Bool {
         !serverURL.trimmingCharacters(in: .whitespaces).isEmpty && !token.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -117,6 +123,7 @@ final class AppSettings {
         static let autopauseMinutes = "autopauseMinutes"
         static let forgotEnabled = "forgotEnabled"
         static let forgotMinutes = "forgotMinutes"
+        static let workdays = "workdays"
         static let morningEnabled = "morningEnabled"
         static let morningTime = "morningTime"
         static let minimumMinutes = "minimumMinutes"
