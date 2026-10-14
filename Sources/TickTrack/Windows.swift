@@ -44,6 +44,13 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
 
     /// Задаёт окну итоговый размер содержимого и ставит его посередине экрана с курсором.
     private func place(_ window: NSWindow, id: String, content: NSView) {
+        Self.centerOnCursorScreen(window, content: content)
+        anchors[id] = (window.frame.maxY, window.frame.size)
+    }
+
+    /// Итоговый размер по содержимому и точно посередине экрана, на котором курсор.
+    /// `NSWindow.center()` не подходит: он ставит окно в верхнюю треть экрана.
+    static func centerOnCursorScreen(_ window: NSWindow, content: NSView) {
         content.layoutSubtreeIfNeeded()
         let size = content.fittingSize
         if size.width > 0, size.height > 0 { window.setContentSize(size) }
@@ -57,11 +64,10 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         frame.origin.x = visible.midX - frame.width / 2
         frame.origin.y = visible.midY - frame.height / 2
         window.setFrame(fit(frame, in: visible), display: false)
-        anchors[id] = (window.frame.maxY, window.frame.size)
     }
 
     /// Сдвигает рамку так, чтобы она помещалась в видимую область экрана; верх важнее низа.
-    private func fit(_ frame: NSRect, in visible: NSRect) -> NSRect {
+    private static func fit(_ frame: NSRect, in visible: NSRect) -> NSRect {
         var frame = frame
         frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
         frame.origin.y = max(frame.minY, visible.minY)
@@ -74,7 +80,7 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
               let anchor = anchors[id], window.frame.size != anchor.size else { return }
         var frame = window.frame
         frame.origin.y = anchor.top - frame.height
-        if let visible = window.screen?.visibleFrame { frame = fit(frame, in: visible) }
+        if let visible = window.screen?.visibleFrame { frame = Self.fit(frame, in: visible) }
         anchors[id] = (frame.maxY, frame.size)
         if frame != window.frame { window.setFrame(frame, display: true) }
     }

@@ -296,6 +296,8 @@ final class AppModel {
     func startIssue(_ id: String, at time: Date? = nil) {
         apply { state, config in state.start(issueId: id, at: time ?? Date(), config: config) }
         reminder = nil
+        // Начали работать — вопрос «Закончили работу на сегодня?» уже неактуален.
+        dismissQuitQuestion()
     }
 
     /// «Начать работу» / «Продолжить работу».

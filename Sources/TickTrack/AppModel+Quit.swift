@@ -33,9 +33,15 @@ extension AppModel {
         }
     }
 
+    /// Закрывает висящий вопрос при выходе, как «Не выходить».
+    func dismissQuitQuestion() {
+        if quitWindow != nil { quitChosen(.cancel) }
+    }
+
     private func quitChosen(_ choice: QuitChoice) {
-        quitWindow?.orderOut(nil)
+        let window = quitWindow
         quitWindow = nil
+        window?.close()
         switch choice {
         case .endDay:
             endDayAndQuit()
@@ -102,20 +108,25 @@ extension AppModel {
             quitWindow.makeKeyAndOrderFront(nil)
             return
         }
-        let window = NSWindow(contentViewController: NSHostingController(rootView: QuitDialogView(details: details) { [weak self] choice in
+        let controller = NSHostingController(rootView: QuitDialogView(details: details) { [weak self] choice in
             self?.quitChosen(choice)
-        }))
-        // Как системное окно предупреждения: без заголовка и кнопок окна, можно двигать за фон.
-        window.styleMask = [.titled, .fullSizeContentView]
+        })
+        let window = NSWindow(contentViewController: controller)
+        // Как системное окно предупреждения, но с крестиком: он работает как «Не выходить».
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            window.standardWindowButton(button)?.isHidden = true
-        }
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.level = .modalPanel
-        window.center()
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if self?.quitWindow === window { self?.quitWindow = nil }
+            }
+        }
+        WindowCoordinator.centerOnCursorScreen(window, content: controller.view)
         window.makeKeyAndOrderFront(nil)
         quitWindow = window
     }
