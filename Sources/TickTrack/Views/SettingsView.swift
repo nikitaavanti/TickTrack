@@ -9,7 +9,7 @@ struct SettingsView: View {
         @Bindable var settings = model.settings
         VStack(spacing: 0) {
             Form {
-                Section("YouTrack") {
+                Section {
                     TextField("Адрес сервера", text: $settings.serverURL, prompt: Text("https://youtrack.example.com"))
                         .onSubmit { Task { await model.checkConnection() } }
                     SecureField("Постоянный токен", text: $settings.token, prompt: Text("perm:…"))
@@ -19,6 +19,12 @@ struct SettingsView: View {
                         Button("Проверить подключение") { Task { await model.checkConnection() } }
                         connectionStatus
                     }
+                } header: {
+                    Text("YouTrack")
+                } footer: {
+                    // Системное окно связки ключей не объясняет, зачем ему пароль, а поменять его текст нельзя.
+                    Text("Токен хранится в связке ключей macOS. После обновления TickTrack macOS может спросить пароль от Mac — так TickTrack просит доступ к токену. Нажмите «Разрешать всегда».")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 MyProjectsSection(model: model)
                 Section {
