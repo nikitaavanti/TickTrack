@@ -562,7 +562,7 @@ final class AppModel {
         if backdated { toast("Учёт начат задним числом", "\(id) · с \(Fmt.clock(reminder.since))") }
     }
 
-    /// Автопоказ начала дня в рабочие дни в заданное время (настройка «Открывать начало дня само»).
+    /// Автопоказ начала дня в рабочие дни в заданное время (настройка «Формировать план на день в начале дня»).
     private func checkMorning() {
         guard settings.morningEnabled, state.phase == .notStarted, state.current == nil,
               !windows.hasOpenWindow, awaySince == nil else { return }

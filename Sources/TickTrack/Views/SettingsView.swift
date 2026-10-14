@@ -25,28 +25,42 @@ struct SettingsView: View {
                     LabeledContent("Рабочие дни") {
                         WorkdaysPicker(selection: $settings.workdays)
                     }
+                    .help("В эти дни TickTrack сам предлагает сформировать план на день и напоминает, если учёт не включён. В другие дни учёт работает, только если вы сами начали день.")
                     DatePicker("Начало рабочего дня", selection: morningTime, displayedComponents: .hourAndMinute)
-                    Toggle("Открывать начало дня само", isOn: $settings.morningEnabled)
-                    Toggle("Спрашивать о простое", isOn: $settings.autopauseEnabled)
-                    Stepper("Бездействие дольше \(settings.autopauseMinutes) мин", value: $settings.autopauseMinutes, in: 1...120)
-                    Toggle("Напоминать о забытом старте", isOn: $settings.forgotEnabled)
-                    Stepper("Если работаю без учёта \(settings.forgotMinutes) мин", value: $settings.forgotMinutes, in: 1...120)
-                        .disabled(!settings.forgotEnabled)
+                        .help("Раньше этого времени TickTrack не предлагает сформировать план на день и не напоминает о работе.")
+                    Toggle("Формировать план на день в начале дня", isOn: $settings.morningEnabled)
+                        .help("В рабочий день в указанное время откроется «План на день». Если план уже собран — сразу выбор задачи, с которой начать.")
                 } header: {
-                    Text("Учёт времени")
+                    Text("Рабочий день")
                 } footer: {
-                    Text("В другие дни и до начала рабочего дня TickTrack сам ничего не открывает и не напоминает о начале дня.")
+                    Text("В нерабочие дни и до начала рабочего дня TickTrack не предлагает план и не напоминает о работе.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Section("Перерывы и напоминания") {
+                    Toggle("Спрашивать, как записать перерыв", isOn: $settings.autopauseEnabled)
+                        .help("Когда вы вернётесь к компьютеру, TickTrack спросит, что делать со временем перерыва: записать в другую задачу (например, на созвон), в текущую, не записывать или завершить рабочий день. Если выключить, перерыв засчитывается в текущую задачу.")
+                    Stepper("Перерыв — от \(settings.autopauseMinutes) мин без мыши и клавиатуры", value: $settings.autopauseMinutes, in: 1...120)
+                        .help("Сон Mac и блокировка экрана тоже считаются перерывом.")
+                    Toggle("Напоминать, если учёт не ведётся", isOn: $settings.forgotEnabled)
+                        .help("Если вы работаете за компьютером, а учёт не ведётся, появится напоминание: начать учёт сейчас или с момента, когда он остановился.")
+                    Stepper("Через \(settings.forgotMinutes) мин работы без учёта", value: $settings.forgotMinutes, in: 1...120)
+                        .disabled(!settings.forgotEnabled)
+                        .help("Сколько минут работы без учёта ждать перед напоминанием.")
+                }
                 Section("Списание") {
-                    Stepper("Не списывать отрезки короче \(settings.minimumMinutes) мин", value: $settings.minimumMinutes, in: 0...30)
-                    Toggle("Показывать уведомление со списанием", isOn: $settings.cardEnabled)
-                    Stepper("Отправлять само через \(settings.cardSeconds) с", value: $settings.cardSeconds, in: 5...120, step: 5)
+                    Stepper("Не списывать активность меньше \(settings.minimumMinutes) мин", value: $settings.minimumMinutes, in: 0...30)
+                        .help("Короткое время по задаче не уходит в YouTrack, например, если вы быстро переключились или нажали не ту задачу. 0 — списывать всё.")
+                    Toggle("Проверять списание перед отправкой", isOn: $settings.cardEnabled)
+                        .help("После каждой задачи появляется карточка: можно выбрать тип работы, написать комментарий или отказаться от списания. Если выключить, время уходит в YouTrack сразу, без вашего комментария.")
+                    Stepper("Если не трогать, отправить через \(settings.cardSeconds) с", value: $settings.cardSeconds, in: 5...120, step: 5)
                         .disabled(!settings.cardEnabled)
+                        .help("Пока карточку не трогаете, идёт отсчёт. Выбрали тип или начали писать комментарий — карточка ждёт вас.")
                     Picker("Тип работы по умолчанию", selection: $settings.defaultType) {
                         ForEach(WorkType.allCases) { Text(verbatim: $0.title).tag($0) }
                     }
-                    Stepper("Дневная норма \(settings.dailyNorm.hoursText) ч", value: $settings.dailyNormMinutes, in: 30...(16 * 60), step: 30)
+                    .help("Подставляется для задач, по которым ещё не списывали. Дальше для каждой задачи запоминается последний выбранный тип. Тип пишется в начале комментария: «Анализ: …».")
+                    Stepper("Норма в день: \(settings.dailyNorm.hoursText) ч", value: $settings.dailyNormMinutes, in: 30...(16 * 60), step: 30)
+                        .help("Сколько часов в день вы обычно списываете. В меню и в итоге дня видно, сколько процентов нормы набрано и сколько осталось.")
                 }
                 Section("Вид и клавиши") {
                     Picker("В строке меню", selection: $settings.menuBarMode) {
