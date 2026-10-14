@@ -112,6 +112,25 @@ private struct CardHeader<Trailing: View>: View {
     }
 }
 
+/// Кнопка карточки — капсула, как чипы типов работы. Системные кнопки в неактивирующейся панели
+/// рисуются как в неактивном окне: выделенная «Списать» выглядела серой, будто недоступной.
+private struct CardButtonStyle: ButtonStyle {
+    var prominent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: prominent ? .semibold : .regular))
+            .monospacedDigit()
+            .fixedSize()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .background(Capsule().fill(prominent ? Color.accentColor : Color.secondary.opacity(0.15)))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
 /// Карточка списания: не перехватывает фокус, сама отправляет списание через N секунд, если её не трогать.
 struct WriteOffCard: View {
     let model: AppModel
@@ -139,8 +158,9 @@ struct WriteOffCard: View {
         NotificationCard(closeHelp: "Закрыть и списать как есть", onClose: { finish(commit: true) }) {
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
+                    // Справа — за какой отрезок карточка: в стопке их бывает несколько. Отсчёт — на кнопке «Списать».
                     CardHeader(title: Text(verbatim: model.title(of: draft.issueId).isEmpty ? draft.issueId : model.title(of: draft.issueId))) {
-                        if holding { Text("ждёт вас") } else { Text("через \(remaining) с") }
+                        Text(verbatim: "\(Fmt.clock(draft.start))–\(Fmt.clock(draft.end))")
                     }
                     .issueContextMenu(model, draft.issueId)
                     HStack(spacing: 0) {
@@ -186,16 +206,25 @@ struct WriteOffCard: View {
                         }
                         .opacity(holding ? 0 : 1)
                     Button("Не списывать") { finish(commit: false) }
+                        .buttonStyle(CardButtonStyle())
+                    // Пока идёт отсчёт, кнопка говорит, что нажмётся сама: «Списать через 3 с».
                     // Enter списывает только из поля комментария: панель неактивирующая, без фокуса клавиши не доходят.
                     Button { finish(commit: true) } label: {
-                        HStack(spacing: 4) {
-                            Text("Списать")
-                            if fieldFocused { Text(verbatim: "↩").opacity(0.7) }
+                        if holding {
+                            HStack(spacing: 4) {
+                                Text("Списать")
+                                if fieldFocused { Text(verbatim: "↩").opacity(0.7) }
+                            }
+                        } else {
+                            // Ширина — по самой длинной надписи, чтобы кнопка не дёргалась, когда секунд становится меньше 10.
+                            ZStack {
+                                Text("Списать через \(total) с").hidden()
+                                Text("Списать через \(remaining) с")
+                            }
                         }
                     }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(CardButtonStyle(prominent: true))
                 }
-                .controlSize(.small)
             }
         }
         .task {
