@@ -143,21 +143,32 @@ public struct TrackerState: Codable, Sendable {
         previousPlan.filter { !plan.contains($0) }
     }
 
-    /// Новый календарный день: вчерашний план становится «планом последнего рабочего дня».
-    /// Пока идёт отрезок, день не переключаем: он разделится по полуночи при завершении.
+    /// Пора ли переходить на новую дату: день не начат или завершён, а дата сменилась.
+    /// Начатый день полночь не прерывает — его закрывает «Завершить рабочий день» или `endForgottenDay`.
+    public func needsRollOver(now: Date, calendar: Calendar) -> Bool {
+        guard current == nil, phase != .started else { return false }
+        return planDay.map { !calendar.isDate($0, inSameDayAs: now) } ?? true
+    }
+
+    /// Новая дата: оставшийся план становится «прошлым», день не начат.
     public mutating func rollOver(now: Date, calendar: Calendar) {
-        guard current == nil else { return }
+        guard needsRollOver(now: now, calendar: calendar) else { return }
         let today = calendar.startOfDay(for: now)
         guard let day = planDay else {
             planDay = today
             return
         }
         guard day < today else { return }
-        if !plan.isEmpty { previousPlan = plan }
-        plan = []
+        closePlan()
         planDay = today
         phase = .notStarted
         paused = false
+    }
+
+    /// План уходит в «прошлый»: его задачи предлагаются при сборе следующего плана.
+    private mutating func closePlan() {
+        if !plan.isEmpty { previousPlan = plan }
+        plan = []
     }
 
     public mutating func beginDay(plan newPlan: [String], at now: Date, calendar: Calendar) {
@@ -207,16 +218,19 @@ public struct TrackerState: Codable, Sendable {
         return result
     }
 
+    /// Завершённый день закрывает и план: следующий день, когда бы его ни начали, собирается заново.
     public mutating func endDay(at time: Date, config: TrackerConfig) -> [TrackerEvent] {
         let result = finishCurrent(at: time, config: config)
         paused = false
         phase = .ended
+        closePlan()
         return result
     }
 
-    /// Учёт шёл, а пользователь ушёл и вернулся уже в другой календарный день: день не завершили.
+    /// День начат, а пользователь ушёл и вернулся уже в другой календарный день: день не завершили.
+    /// Работа за полночь без перерыва забытым днём не считается.
     public func isForgottenDay(lastSeen: Date, now: Date, calendar: Calendar) -> Bool {
-        current != nil && lastSeen < now && !calendar.isDate(lastSeen, inSameDayAs: now)
+        phase == .started && lastSeen < now && !calendar.isDate(lastSeen, inSameDayAs: now)
     }
 
     /// Забытый день завершается в момент `lastSeen`, когда пользователя видели в последний раз, — ночь не списывается.

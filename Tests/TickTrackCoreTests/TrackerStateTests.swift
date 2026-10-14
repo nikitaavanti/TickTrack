@@ -190,14 +190,41 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         #expect(state.startCandidate == "A-1")
     }
 
-    @Test func newDayMovesPlanToPrevious() {
+    /// План закрывается вместе с днём, а не в полночь: следующий день собирается заново, когда бы его ни начали.
+    @Test func endingDayMovesPlanToPrevious() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1", "B-2"], at: at(9, 0), calendar: calendar)
+        _ = state.start(issueId: "A-1", at: at(9, 0), config: config)
+        _ = state.endDay(at: at(18, 0), config: config)
+        #expect(state.plan.isEmpty)
+        #expect(state.previousPlan == ["A-1", "B-2"])
+        #expect(state.status == .ended)
+        state.rollOver(now: at(9, 0, day: 13), calendar: calendar)
+        #expect(state.previousPlan == ["A-1", "B-2"])
+        #expect(state.status == .notStarted)
+    }
+
+    @Test func newDayCanStartTheSameEvening() {
         var state = TrackerState()
         state.beginDay(plan: ["A-1", "B-2"], at: at(9, 0), calendar: calendar)
         _ = state.endDay(at: at(18, 0), config: config)
-        state.rollOver(now: at(9, 0, day: 13), calendar: calendar)
-        #expect(state.plan.isEmpty)
-        #expect(state.previousPlan == ["A-1", "B-2"])
-        #expect(state.status == .notStarted)
+        #expect(!state.needsRollOver(now: at(20, 0), calendar: calendar))
+        state.beginDay(plan: ["B-2", "C-3"], at: at(20, 0), calendar: calendar)
+        #expect(state.plan == ["B-2", "C-3"])
+        #expect(state.previousPlanSuggestions == ["A-1"])
+        #expect(state.status == .idle)
+    }
+
+    /// Работа за полночь: пауза после полуночи не сбрасывает ни план, ни начатый день.
+    @Test func startedDaySurvivesMidnight() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1"], at: at(20, 0), calendar: calendar)
+        _ = state.start(issueId: "A-1", at: at(20, 0), config: config)
+        _ = state.pause(at: at(23, 30), config: config)
+        #expect(!state.needsRollOver(now: at(0, 30, day: 13), calendar: calendar))
+        state.rollOver(now: at(0, 30, day: 13), calendar: calendar)
+        #expect(state.plan == ["A-1"])
+        #expect(state.status == .paused)
     }
 
     @Test func idleCanEndTheDayAtIdleStart() {
@@ -230,9 +257,23 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         #expect(state.current != nil)
     }
 
-    @Test func forgottenDayNeedsRunningTracking() {
+    /// Ушли на паузе или вышли с «Нет, ещё вернусь» и вернулись назавтра: день закрывается без списаний.
+    @Test func forgottenDayWithoutTrackingClosesPlan() {
         var state = TrackerState()
         state.beginDay(plan: ["A-1"], at: at(9, 0), calendar: calendar)
+        _ = state.start(issueId: "A-1", at: at(9, 0), config: config)
+        _ = state.pause(at: at(18, 0), config: config)
+        let events = state.endForgottenDay(lastSeen: at(18, 30), now: at(9, 10, day: 13), config: config)
+        #expect(events.isEmpty)
+        #expect(state.plan.isEmpty)
+        #expect(state.previousPlan == ["A-1"])
+        #expect(state.status == .notStarted)
+    }
+
+    @Test func endedDayIsNotForgotten() {
+        var state = TrackerState()
+        state.beginDay(plan: ["A-1"], at: at(9, 0), calendar: calendar)
+        _ = state.endDay(at: at(18, 0), config: config)
         #expect(!state.isForgottenDay(lastSeen: at(18, 30), now: at(9, 10, day: 13), calendar: calendar))
     }
 }
@@ -349,9 +390,11 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         #expect(state.plan == ["A-1", "A-2"])
     }
 
+    /// План собрали, но день так и не начали: назавтра он предлагается как прошлый.
     @Test func previousPlanIsSuggestedOnNewDay() {
         var state = TrackerState()
-        state.beginDay(plan: ["A-1", "A-2"], at: at(9, 0, day: 11), calendar: calendar)
+        state.plan = ["A-1", "A-2"]
+        state.planDay = calendar.startOfDay(for: at(9, 0, day: 11))
         state.rollOver(now: at(9, 0), calendar: calendar)
         #expect(state.plan.isEmpty)
         #expect(state.previousPlanSuggestions == ["A-1", "A-2"])

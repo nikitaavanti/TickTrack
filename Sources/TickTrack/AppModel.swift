@@ -135,12 +135,12 @@ final class AppModel {
         let now = Date()
         self.now = now
         state.rollOver(now: now, calendar: calendar)
-        if state.current == nil {
-            state.untrackedSince = now
-        } else if let last = state.lastActivity, let current = state.current {
-            // Перезапуск или сбой посреди отрезка: день могли не завершить, а пользователя могло давно не быть.
+        if state.current == nil { state.untrackedSince = now }
+        if let last = state.lastActivity {
+            // День могли не завершить (вышли с «Нет, ещё вернусь», сбой посреди отрезка),
+            // а пользователя могло давно не быть.
             let dayEnded = endForgottenDay(lastSeen: last, now: now)
-            if !dayEnded, settings.autopauseEnabled, now.timeIntervalSince(last) >= idleThreshold {
+            if !dayEnded, let current = state.current, settings.autopauseEnabled, now.timeIntervalSince(last) >= idleThreshold {
                 presentIdle(IdlePrompt(start: max(last, current.start), end: now, issueId: current.issueId))
             }
         }
@@ -431,7 +431,7 @@ final class AppModel {
     private func tick() {
         now = Date()
         // Проверяем заранее: вызов мутирующего метода уведомил бы наблюдателей, даже если день тот же.
-        if state.current == nil, state.planDay.map({ !calendar.isDate($0, inSameDayAs: now) }) ?? true {
+        if state.needsRollOver(now: now, calendar: calendar) {
             state.rollOver(now: now, calendar: calendar)
             save()
         }
@@ -487,13 +487,21 @@ final class AppModel {
     }
 
     /// День не завершили, а вернулись уже в другой день: день завершается, когда пользователя видели в последний раз.
-    /// Карточка по последнему отрезку показывается как обычно. Возвращает `true`, если день завершён.
+    /// Карточка по последнему отрезку показывается как обычно. Если учёт не шёл, день закрывается молча:
+    /// план уходит в прошлый. Возвращает `true`, если день завершён.
     private func endForgottenDay(lastSeen: Date, now: Date) -> Bool {
-        guard let issueId = state.current?.issueId else { return false }
         var lastSeen = lastSeen
         // С вечера висит «Вы вернулись» — простой из него тоже не списываем.
-        if let prompt = idlePrompt, prompt.issueId == issueId { lastSeen = min(lastSeen, prompt.start) }
+        if let prompt = idlePrompt, prompt.issueId == state.current?.issueId { lastSeen = min(lastSeen, prompt.start) }
         guard state.isForgottenDay(lastSeen: lastSeen, now: now, calendar: calendar) else { return false }
+        guard let issueId = state.current?.issueId else {
+            apply { state, config in
+                state.untrackedSince = now
+                return state.endForgottenDay(lastSeen: lastSeen, now: now, config: config)
+            }
+            reminder = nil
+            return true
+        }
         if idlePrompt != nil {
             idlePrompt = nil
             windows.close("idle")

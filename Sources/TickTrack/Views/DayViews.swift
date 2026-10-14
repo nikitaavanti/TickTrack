@@ -159,7 +159,7 @@ struct PlanView: View {
         let lines = (previous.isEmpty ? 0 : previous.count + 1) + (suggestions.isEmpty ? 0 : suggestions.count + 1)
         if lines > 0 {
             let table = VStack(spacing: 0) {
-                if !previous.isEmpty { suggestionGroup("Вчера в плане", previousIssues) }
+                if !previous.isEmpty { suggestionGroup("В прошлом плане", previousIssues) }
                 if !suggestions.isEmpty {
                     if !previous.isEmpty { Divider() }
                     suggestionGroup("В работе у вас в YouTrack", suggestions)
