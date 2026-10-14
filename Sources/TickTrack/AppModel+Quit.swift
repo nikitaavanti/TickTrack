@@ -17,30 +17,20 @@ extension AppModel {
         switch state.status {
         case .notStarted, .ended:
             return .terminateNow
-        case .tracking(let segment):
-            let choice = askQuit(
-                message: "Идёт учёт по \(segment.issueId) · \(Fmt.hm(elapsedMinutes))",
-                details: "Учёт остановится. Завершить рабочий день?",
-                alternative: "Только остановить и выйти"
-            )
-            switch choice {
-            case .endDay:
-                endDayAndQuit()
-                return .terminateCancel
-            case .alternative:
-                // Как пауза: день остаётся открытым, карточка появится при следующем запуске.
-                pause()
-                return .terminateNow
-            case .cancel:
-                return .terminateCancel
+        case .tracking, .paused, .idle:
+            // Спрашиваем о том, что важно человеку: закончил ли он работу, — и объясняем, что будет при каждом ответе.
+            let details = if let segment = state.current {
+                "Учёт по \(segment.issueId) (\(Fmt.hm(elapsedMinutes))) остановится, время уйдёт в списание. Если ещё вернётесь сегодня — день останется открытым."
+            } else {
+                "Если да — покажем итог дня и выйдем. Если ещё вернётесь сегодня — день останется открытым, план и списания сохранятся."
             }
-        case .paused, .idle:
-            let choice = askQuit(message: "Завершить рабочий день?", details: nil, alternative: "Просто выйти")
-            switch choice {
+            switch askQuit(details: details) {
             case .endDay:
                 endDayAndQuit()
                 return .terminateCancel
-            case .alternative:
+            case .comeBack:
+                // Как остановка учёта: день остаётся открытым, карточка появится при следующем запуске.
+                if state.current != nil { pause() }
                 return .terminateNow
             case .cancel:
                 return .terminateCancel
@@ -93,20 +83,20 @@ extension AppModel {
         return event.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) != nil
     }
 
-    private enum QuitChoice { case endDay, alternative, cancel }
+    private enum QuitChoice { case endDay, comeBack, cancel }
 
-    private func askQuit(message: String, details: String?, alternative: String) -> QuitChoice {
+    private func askQuit(details: String) -> QuitChoice {
         closeMenu()
         NSApp.activate()
         let alert = NSAlert()
-        alert.messageText = message
-        if let details { alert.informativeText = details }
-        alert.addButton(withTitle: "Завершить день и выйти")
-        alert.addButton(withTitle: alternative)
-        alert.addButton(withTitle: "Отмена").keyEquivalent = "\u{1b}"
+        alert.messageText = "Закончили работу на сегодня?"
+        alert.informativeText = details
+        alert.addButton(withTitle: "Да, завершить день")
+        alert.addButton(withTitle: "Нет, ещё вернусь")
+        alert.addButton(withTitle: "Не выходить").keyEquivalent = "\u{1b}"
         switch alert.runModal() {
         case .alertFirstButtonReturn: return .endDay
-        case .alertSecondButtonReturn: return .alternative
+        case .alertSecondButtonReturn: return .comeBack
         default: return .cancel
         }
     }
