@@ -3,9 +3,14 @@ import SwiftUI
 import TickTrackCore
 
 /// Обычные окна приложения (настройки, «План на день» и т. д.). Окна независимы друг от друга.
+///
+/// Окно ставится посередине экрана, на котором курсор, уже с итоговым размером. Когда содержимое
+/// меняет высоту, верхний край окна остаётся на месте, а само окно не уходит за край экрана.
 final class WindowCoordinator: NSObject, NSWindowDelegate {
     private var windows: [String: NSWindow] = [:]
     private var closeHandlers: [String: () -> Void] = [:]
+    /// Верхний край и размер окна на момент последней расстановки: по ним отличаем перетаскивание от изменения размера.
+    private var anchors: [String: (top: CGFloat, size: NSSize)] = [:]
 
     var hasOpenWindow: Bool { windows.values.contains { $0.isVisible } }
 
@@ -25,10 +30,10 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
             window.identifier = NSUserInterfaceItemIdentifier(id)
             window.delegate = self
             windows[id] = window
-            window.center()
         }
         window.title = title
         closeHandlers[id] = onClose
+        if !window.isVisible { place(window, id: id, content: controller.view) }
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
@@ -37,9 +42,54 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         windows[id]?.close()
     }
 
+    /// Задаёт окну итоговый размер содержимого и ставит его посередине экрана с курсором.
+    private func place(_ window: NSWindow, id: String, content: NSView) {
+        content.layoutSubtreeIfNeeded()
+        let size = content.fittingSize
+        if size.width > 0, size.height > 0 { window.setContentSize(size) }
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main else {
+            window.center()
+            return
+        }
+        let visible = screen.visibleFrame
+        var frame = window.frame
+        frame.origin.x = visible.midX - frame.width / 2
+        frame.origin.y = visible.midY - frame.height / 2
+        window.setFrame(fit(frame, in: visible), display: false)
+        anchors[id] = (window.frame.maxY, window.frame.size)
+    }
+
+    /// Сдвигает рамку так, чтобы она помещалась в видимую область экрана; верх важнее низа.
+    private func fit(_ frame: NSRect, in visible: NSRect) -> NSRect {
+        var frame = frame
+        frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+        frame.origin.y = max(frame.minY, visible.minY)
+        frame.origin.y = min(frame.minY, visible.maxY - frame.height)
+        return frame
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, let id = window.identifier?.rawValue,
+              let anchor = anchors[id], window.frame.size != anchor.size else { return }
+        var frame = window.frame
+        frame.origin.y = anchor.top - frame.height
+        if let visible = window.screen?.visibleFrame { frame = fit(frame, in: visible) }
+        anchors[id] = (frame.maxY, frame.size)
+        if frame != window.frame { window.setFrame(frame, display: true) }
+    }
+
+    /// Окно перетащили: новый верхний край становится опорным.
+    func windowDidMove(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, let id = window.identifier?.rawValue,
+              anchors[id]?.size == window.frame.size else { return }
+        anchors[id] = (window.frame.maxY, window.frame.size)
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let id = (notification.object as? NSWindow)?.identifier?.rawValue else { return }
         windows.removeValue(forKey: id)
+        anchors.removeValue(forKey: id)
         closeHandlers.removeValue(forKey: id)?()
     }
 }
