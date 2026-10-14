@@ -268,9 +268,12 @@ public struct TrackerState: Codable, Sendable {
     }
 
     private func events(for issueId: String, from start: Date, to end: Date, type: WorkType?, config: TrackerConfig) -> [TrackerEvent] {
-        TimeMath.splitAtMidnight(start: start, end: end, calendar: config.calendar).compactMap { part in
+        let parts = TimeMath.splitAtMidnight(start: start, end: end, calendar: config.calendar)
+        return parts.compactMap { part in
             let raw = TimeMath.minutes(from: part.start, to: part.end)
-            if raw < 1 { return nil }
+            // Меньше полуминуты округляется до 0. Если это весь отрезок — сообщаем «не списано»; обрезок у полуночи
+            // и отрезок нулевой длины (перенесли всё время на другую задачу) отбрасываются молча.
+            if raw < 1 { return parts.count == 1 && part.end > part.start ? .tooShort(issueId: issueId, rawMinutes: 0) : nil }
             if config.rules.isTooShort(raw: raw) { return .tooShort(issueId: issueId, rawMinutes: raw) }
             return .draft(SegmentDraft(
                 issueId: issueId, start: part.start, end: part.end, rawMinutes: raw,

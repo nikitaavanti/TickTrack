@@ -261,7 +261,9 @@ final class AppModel {
                     committed = true
                 }
             case .tooShort(let id, let raw):
-                toast("Не списано", "\(id) · \(raw) мин, это короче \(settings.minimumMinutes) мин")
+                toast("Не списано", raw < 1
+                      ? "\(id) · меньше минуты"
+                      : "\(id) · \(raw) мин, это короче \(settings.minimumMinutes) мин")
             }
         }
         if committed { syncSoon() }

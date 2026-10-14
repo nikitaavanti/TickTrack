@@ -130,7 +130,8 @@ struct WriteOffCard: View {
         self.draft = draft
         total = model.settings.cardSeconds
         _type = State(initialValue: draft.suggestedType)
-        _text = State(initialValue: CommentText.initial(for: draft.suggestedType))
+        // Пока в поле не щёлкнули — просто тип, без двоеточия: «Созвон».
+        _text = State(initialValue: CommentText.resting(CommentText.initial(for: draft.suggestedType), type: draft.suggestedType))
         _remaining = State(initialValue: model.settings.cardSeconds)
     }
 
@@ -163,7 +164,11 @@ struct WriteOffCard: View {
                     .focused($fieldFocused)
                     .onSubmit { finish(commit: true) }
                     .onExitCommand { finish(commit: false) }
-                    .onChange(of: fieldFocused) { _, focused in if focused { holding = true } }
+                    .onChange(of: fieldFocused) { _, focused in
+                        if focused { holding = true }
+                        // Щёлкнули в поле — «Созвон: », можно дописывать; ушли, ничего не дописав, — снова «Созвон».
+                        text = focused ? CommentText.editing(text, type: type) : CommentText.resting(text, type: type)
+                    }
                     .onChange(of: text) {
                         holding = true
                         model.noteDraftInput(draft, comment: text, type: type)
@@ -206,6 +211,7 @@ struct WriteOffCard: View {
     private func select(_ option: WorkType) {
         type = option
         text = CommentText.replacingType(in: text, with: option)
+        if !fieldFocused { text = CommentText.resting(text, type: option) }
         holding = true
     }
 

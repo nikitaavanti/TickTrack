@@ -120,9 +120,23 @@ public enum CommentText {
         type == .unspecified ? "" : type.rawValue + ": "
     }
 
-    /// Тип работы, записанный в начале комментария.
+    /// Тип работы, записанный в начале комментария: «Анализ: …» или просто «Анализ».
     public static func type(of text: String) -> WorkType? {
-        WorkType.allCases.first { $0 != .unspecified && text.hasPrefix($0.rawValue + ":") }
+        WorkType.allCases.first { $0 != .unspecified && (text.hasPrefix($0.rawValue + ":") || text == $0.rawValue) }
+    }
+
+    /// Комментарий, пока поле не в фокусе: если ничего не дописано — просто тип («Созвон»), так он и спишется.
+    public static func resting(_ text: String, type: WorkType) -> String {
+        hasNoBody(text) ? finalized(initial(for: type), type: type) : text
+    }
+
+    /// Комментарий, когда щёлкнули в поле: если ничего не дописано — «Созвон: », чтобы сразу продолжить.
+    public static func editing(_ text: String, type: WorkType) -> String {
+        hasNoBody(text) ? initial(for: type) : text
+    }
+
+    private static func hasNoBody(_ text: String) -> Bool {
+        body(of: text).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Меняет только приставку, остальной текст сохраняется.

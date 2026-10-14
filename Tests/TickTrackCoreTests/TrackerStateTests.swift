@@ -39,6 +39,21 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         #expect(CommentText.finalized("  ", type: .unspecified) == "")
     }
 
+    @Test func commentWithoutTextIsJustTypeUntilEditing() {
+        // Не щёлкали в поле — просто тип.
+        #expect(CommentText.resting("Созвон: ", type: .call) == "Созвон")
+        #expect(CommentText.resting("", type: .unspecified) == "")
+        // Щёлкнули — тип с двоеточием и пробелом, можно дописывать.
+        #expect(CommentText.editing("Созвон", type: .call) == "Созвон: ")
+        // Дописанный текст не трогаем.
+        #expect(CommentText.resting("Созвон: обсудили", type: .call) == "Созвон: обсудили")
+        #expect(CommentText.editing("Созвон: обсудили", type: .call) == "Созвон: обсудили")
+        // Сменили тип, не заходя в поле.
+        #expect(CommentText.resting(CommentText.replacingType(in: "Созвон", with: .analysis), type: .analysis) == "Анализ")
+        #expect(CommentText.type(of: "Созвон") == .call)
+        #expect(CommentText.finalized("Созвон", type: .call) == "Созвон")
+    }
+
     @Test func youTrackDateIsUTCMidnightOfLocalDay() {
         // 00:30 по Москве 13 октября — это ещё 12 октября по UTC, но списание идёт датой 13-го.
         let ms = TimeMath.youTrackDate(for: at(0, 30, day: 13), calendar: calendar)
@@ -69,6 +84,26 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         _ = state.start(issueId: "A-1", at: at(10, 0), config: config)
         let events = state.start(issueId: "B-2", at: at(10, 1), config: config)
         #expect(events == [.tooShort(issueId: "A-1", rawMinutes: 1)])
+    }
+
+    @Test func stoppingWithinHalfMinuteIsReportedNotWrittenOff() {
+        var state = TrackerState()
+        _ = state.start(issueId: "A-1", at: at(10, 0), config: config)
+        let events = state.pause(at: at(10, 0).addingTimeInterval(20), config: config)
+        #expect(events == [.tooShort(issueId: "A-1", rawMinutes: 0)])
+        // И когда списывается всё: нулевую длительность в YouTrack не отправить.
+        var everything = TrackerState()
+        let all = TrackerConfig(rules: WriteOffRules(minimumMinutes: 0), defaultType: .analysis, calendar: calendar)
+        _ = everything.start(issueId: "A-1", at: at(10, 0), config: all)
+        #expect(everything.pause(at: at(10, 0).addingTimeInterval(20), config: all) == [.tooShort(issueId: "A-1", rawMinutes: 0)])
+    }
+
+    @Test func secondsAfterMidnightAreDroppedSilently() {
+        var state = TrackerState()
+        _ = state.start(issueId: "A-1", at: at(23, 30), config: config)
+        let events = state.endDay(at: at(0, 0, day: 13).addingTimeInterval(10), config: config)
+        #expect(events.count == 1)
+        #expect(drafts(events).map(\.rawMinutes) == [30])
     }
 
     @Test func clickingCurrentTaskDoesNothing() {
