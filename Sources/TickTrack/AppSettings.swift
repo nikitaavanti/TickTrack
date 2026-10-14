@@ -102,6 +102,55 @@ final class AppSettings {
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
     }
 
+    /// Значения на момент открытия настроек: «Отмена» возвращает их.
+    struct Snapshot {
+        let serverURL, token, inProgressQuery: String
+        let myProjects: [String]
+        let autopauseEnabled: Bool, autopauseMinutes: Int, forgotEnabled: Bool, forgotMinutes: Int
+        let workdays: Set<Int>, morningEnabled: Bool, morningTime: Int
+        let minimumMinutes: Int, cardEnabled: Bool, cardSeconds: Int, defaultType: WorkType, dailyNormMinutes: Int
+        let menuBarMode: MenuBarTitleMode, hotKey: HotKeyShortcut, launchAtLogin: Bool
+    }
+
+    var snapshot: Snapshot {
+        Snapshot(
+            serverURL: serverURL, token: token, inProgressQuery: inProgressQuery, myProjects: myProjects,
+            autopauseEnabled: autopauseEnabled, autopauseMinutes: autopauseMinutes,
+            forgotEnabled: forgotEnabled, forgotMinutes: forgotMinutes,
+            workdays: workdays, morningEnabled: morningEnabled, morningTime: morningTime,
+            minimumMinutes: minimumMinutes, cardEnabled: cardEnabled, cardSeconds: cardSeconds,
+            defaultType: defaultType, dailyNormMinutes: dailyNormMinutes,
+            menuBarMode: menuBarMode, hotKey: hotKey, launchAtLogin: launchAtLogin
+        )
+    }
+
+    /// Возвращает значения из `snapshot`. Присваивается только изменившееся: каждое присваивание пишет
+    /// в `UserDefaults`, а токен — в связку ключей, которая может спросить пароль.
+    func restore(_ snapshot: Snapshot) {
+        func put<T: Equatable>(_ key: ReferenceWritableKeyPath<AppSettings, T>, _ value: T) {
+            if self[keyPath: key] != value { self[keyPath: key] = value }
+        }
+        put(\.serverURL, snapshot.serverURL)
+        put(\.token, snapshot.token)
+        put(\.inProgressQuery, snapshot.inProgressQuery)
+        put(\.myProjects, snapshot.myProjects)
+        put(\.autopauseEnabled, snapshot.autopauseEnabled)
+        put(\.autopauseMinutes, snapshot.autopauseMinutes)
+        put(\.forgotEnabled, snapshot.forgotEnabled)
+        put(\.forgotMinutes, snapshot.forgotMinutes)
+        put(\.workdays, snapshot.workdays)
+        put(\.morningEnabled, snapshot.morningEnabled)
+        put(\.morningTime, snapshot.morningTime)
+        put(\.minimumMinutes, snapshot.minimumMinutes)
+        put(\.cardEnabled, snapshot.cardEnabled)
+        put(\.cardSeconds, snapshot.cardSeconds)
+        put(\.defaultType, snapshot.defaultType)
+        put(\.dailyNormMinutes, snapshot.dailyNormMinutes)
+        put(\.menuBarMode, snapshot.menuBarMode)
+        put(\.hotKey, snapshot.hotKey)
+        put(\.launchAtLogin, snapshot.launchAtLogin)
+    }
+
     var rules: WriteOffRules {
         WriteOffRules(minimumMinutes: minimumMinutes)
     }

@@ -4,6 +4,14 @@ import TickTrackCore
 struct SettingsView: View {
     let model: AppModel
     let close: () -> Void
+    /// Настройки применяются сразу, по ходу правки; «Отмена» возвращает то, что было при открытии окна.
+    @State private var initial: AppSettings.Snapshot
+
+    init(model: AppModel, close: @escaping () -> Void) {
+        self.model = model
+        self.close = close
+        _initial = State(initialValue: model.settings.snapshot)
+    }
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -100,6 +108,7 @@ struct SettingsView: View {
             HStack {
                 Button("Завершить TickTrack") { NSApp.terminate(nil) }
                 Spacer()
+                Button("Отмена", action: cancel).keyboardShortcut(.cancelAction)
                 Button("Готово", action: close).keyboardShortcut(.defaultAction)
             }
             .padding(16)
@@ -112,6 +121,21 @@ struct SettingsView: View {
         .task {
             if model.settings.isConfigured, model.connection == .unknown { await model.checkConnection() }
         }
+    }
+
+    /// Окно закрывается сразу, и `onChange` выше может не успеть сработать, поэтому последствия применяются здесь.
+    private func cancel() {
+        let settings = model.settings
+        let connectionChanged = settings.serverURL != initial.serverURL || settings.token != initial.token
+        let hotKeyChanged = settings.hotKey != initial.hotKey
+        let loginChanged = settings.launchAtLogin != initial.launchAtLogin
+        let projectsChanged = settings.myProjects != initial.myProjects
+        settings.restore(initial)
+        if hotKeyChanged { model.applyHotKey() }
+        if loginChanged { model.applyLaunchAtLogin() }
+        if connectionChanged { model.connectionSettingsChanged() }
+        if projectsChanged { model.myProjectsChanged() }
+        close()
     }
 
     @ViewBuilder private var connectionStatus: some View {
