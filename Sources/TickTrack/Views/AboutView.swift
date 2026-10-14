@@ -21,7 +21,7 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            AboutAnimation(size: 96)
+            AppIconAnimation(size: 96)
             Text(verbatim: "TickTrack").font(.title2.weight(.semibold))
             Text(verbatim: version)
                 .font(.callout).foregroundStyle(.secondary)
@@ -52,9 +52,9 @@ struct AboutView: View {
     }
 }
 
-/// Анимация вместо иконки в «О программе»: кадры из `AboutAnimation.png` (APNG) в ресурсах приложения.
-/// Без файла (запуск через `swift run`) и при «Уменьшить движение» — обычная иконка приложения.
-private struct AboutAnimation: View {
+/// Анимированный кот вместо иконки — в «О программе» и в вопросе при выходе: кадры из `AboutAnimation.png` (APNG)
+/// в ресурсах приложения. Без файла (запуск через `swift run`) и при «Уменьшить движение» — обычная иконка приложения.
+struct AppIconAnimation: View {
     let size: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

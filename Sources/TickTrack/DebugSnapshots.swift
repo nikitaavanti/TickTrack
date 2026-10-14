@@ -67,6 +67,8 @@ enum DebugSnapshots {
             await model.loadProjects()
             render(SettingsView(model: model, close: {}), "12-settings", folder)
             render(AboutView(), "13-about", folder)
+            render(QuitDialogView(details: "Если да — покажем итог дня и\u{00A0}выйдем. Если ещё вернётесь сегодня — день останется открытым, план и\u{00A0}списания сохранятся.") { _ in }, "14-quit", folder)
+            render(QuitDialogView(details: "Учёт по\u{00A0}VEG-4472 (1:20) остановится, время уйдёт в\u{00A0}списание. Если ещё вернётесь сегодня — день останется открытым.") { _ in }, "14b-quit-tracking", folder)
             NSApp.terminate(nil)
         }
         return true

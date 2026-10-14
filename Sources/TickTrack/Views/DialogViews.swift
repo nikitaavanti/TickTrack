@@ -332,3 +332,38 @@ struct IdleReturnView: View {
         close()
     }
 }
+
+/// Вопрос при выходе. Своё окно вместо `NSAlert`: оно шире, чтобы пояснение не переносилось по слогам,
+/// и с котом из «О программе» по центру. Enter — завершить день, Esc — не выходить.
+struct QuitDialogView: View {
+    let details: LocalizedStringKey
+    let choose: (QuitChoice) -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            AppIconAnimation(size: 80)
+            Text("Закончили работу на сегодня?")
+                .font(.headline)
+                .padding(.top, 4)
+            Text(details)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 8) {
+                Button { choose(.endDay) } label: { Text("Да, завершить день").frame(maxWidth: .infinity) }
+                    .buttonStyle(.glassProminent)
+                    .keyboardShortcut(.defaultAction)
+                Button { choose(.comeBack) } label: { Text("Нет, ещё вернусь").frame(maxWidth: .infinity) }
+                    .buttonStyle(.glass)
+                Button { choose(.cancel) } label: { Text("Не выходить").frame(maxWidth: .infinity) }
+                    .buttonStyle(.glass)
+                    .keyboardShortcut(.cancelAction)
+            }
+            .controlSize(.large)
+            .padding(.top, 8)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 28)
+        .padding(.bottom, 20)
+        .frame(width: 420)
+    }
+}

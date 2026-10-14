@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import SwiftUI
 import TickTrackCore
 
 /// «Завершить TickTrack». Все пути выхода (пункт меню, ⌘Q, кнопка в настройках, система)
@@ -19,10 +20,11 @@ extension AppModel {
             return .terminateNow
         case .tracking, .paused, .idle:
             // Спрашиваем о том, что важно человеку: закончил ли он работу, — и объясняем, что будет при каждом ответе.
-            let details = if let segment = state.current {
-                "Учёт по \(segment.issueId) (\(Fmt.hm(elapsedMinutes))) остановится, время уйдёт в списание. Если ещё вернётесь сегодня — день останется открытым."
+            // Неразрывные пробелы не дают строке оборваться на коротком предлоге.
+            let details: LocalizedStringKey = if let segment = state.current {
+                "Учёт по\u{00A0}\(segment.issueId) (\(Fmt.hm(elapsedMinutes))) остановится, время уйдёт в\u{00A0}списание. Если ещё вернётесь сегодня — день останется открытым."
             } else {
-                "Если да — покажем итог дня и выйдем. Если ещё вернётесь сегодня — день останется открытым, план и списания сохранятся."
+                "Если да — покажем итог дня и\u{00A0}выйдем. Если ещё вернётесь сегодня — день останется открытым, план и\u{00A0}списания сохранятся."
             }
             switch askQuit(details: details) {
             case .endDay:
@@ -83,24 +85,31 @@ extension AppModel {
         return event.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) != nil
     }
 
-    private enum QuitChoice { case endDay, comeBack, cancel }
-
-    private func askQuit(details: String) -> QuitChoice {
+    private func askQuit(details: LocalizedStringKey) -> QuitChoice {
         closeMenu()
         NSApp.activate()
-        let alert = NSAlert()
-        alert.messageText = "Закончили работу на сегодня?"
-        alert.informativeText = details
-        alert.addButton(withTitle: "Да, завершить день")
-        alert.addButton(withTitle: "Нет, ещё вернусь")
-        alert.addButton(withTitle: "Не выходить").keyEquivalent = "\u{1b}"
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: return .endDay
-        case .alertSecondButtonReturn: return .comeBack
-        default: return .cancel
+        var choice = QuitChoice.cancel
+        let window = NSWindow(contentViewController: NSHostingController(rootView: QuitDialogView(details: details) { picked in
+            choice = picked
+            NSApp.stopModal()
+        }))
+        // Как системное окно предупреждения: без заголовка и кнопок окна, можно двигать за фон.
+        window.styleMask = [.titled, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            window.standardWindowButton(button)?.isHidden = true
         }
+        window.isMovableByWindowBackground = true
+        window.level = .modalPanel
+        window.center()
+        NSApp.runModal(for: window)
+        window.orderOut(nil)
+        return choice
     }
 }
+
+enum QuitChoice { case endDay, comeBack, cancel }
 
 struct DraftInput {
     var comment: String
