@@ -42,10 +42,9 @@ struct MenuView: View {
                 MenuRow(icon: "stop.circle", title: Text("Остановить учёт"), shortcut: "␣") { run(model.pause) }
                 MenuRow(icon: "arrow.uturn.backward", title: Text("Я забыл переключиться…")) { run(model.openReassign) }
             }
-            if state.current != nil || state.status == .paused {
+            // Пока день начат — и на паузе, и после «Начну позже»: иначе такой день нечем завершить.
+            if state.phase == .started {
                 MenuRow(icon: "stop.fill", title: Text("Завершить рабочий день")) { run { model.endDay() } }
-            }
-            if state.current != nil || state.status == .paused {
                 Divider().padding(.vertical, 4)
             }
             MenuRow(icon: "list.bullet", title: Text("План на день…")) { run { model.openPlan() } }

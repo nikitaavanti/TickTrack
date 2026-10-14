@@ -239,6 +239,7 @@ struct ReminderCard: View {
             }
         } actions: {
             // Подписи длинные: в один ряд три кнопки не помещаются, поэтому «Напомнить» — отдельным рядом.
+            // Учёт остановлен, а человек за компьютером — возможно, рабочий день уже кончился: рядом «Завершить день».
             VStack(spacing: 4) {
                 switch reminder.kind {
                 case .dayNotStarted:
@@ -258,7 +259,14 @@ struct ReminderCard: View {
                         }
                     }
                 }
-                Button(action: model.snoozeReminder) { Text("Напомнить через 10 минут").frame(maxWidth: .infinity) }
+                if reminder.kind == .dayNotStarted {
+                    Button(action: model.snoozeReminder) { Text("Напомнить через 10 минут").frame(maxWidth: .infinity) }
+                } else {
+                    HStack(spacing: 4) {
+                        Button { model.endDay() } label: { Text("Завершить день").frame(maxWidth: .infinity) }
+                        Button(action: model.snoozeReminder) { Text("Напомнить через 10 мин").frame(maxWidth: .infinity) }
+                    }
+                }
             }
             .controlSize(.small)
         }
