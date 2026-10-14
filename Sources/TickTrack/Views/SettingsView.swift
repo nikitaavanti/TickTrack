@@ -22,14 +22,21 @@ struct SettingsView: View {
                 }
                 MyProjectsSection(model: model)
                 Section {
-                    LabeledContent("Рабочие дни") {
+                    LabeledContent {
                         WorkdaysPicker(selection: $settings.workdays)
+                    } label: {
+                        HintLabel("Рабочие дни", hint: "В эти дни TickTrack сам предлагает сформировать план на день и напоминает, если учёт не включён. В другие дни учёт работает, только если вы сами начали день.")
                     }
-                    .help("В эти дни TickTrack сам предлагает сформировать план на день и напоминает, если учёт не включён. В другие дни учёт работает, только если вы сами начали день.")
-                    DatePicker("Начало рабочего дня", selection: morningTime, displayedComponents: .hourAndMinute)
-                        .help("Раньше этого времени TickTrack не предлагает сформировать план на день и не напоминает о работе.")
-                    Toggle("Формировать план на день в начале дня", isOn: $settings.morningEnabled)
-                        .help("В рабочий день в указанное время откроется «План на день». Если план уже собран — сразу выбор задачи, с которой начать.")
+                    // Вручную, а не `DatePicker` со своим названием: у того название съезжает выше поля.
+                    HStack {
+                        HintLabel("Начало рабочего дня", hint: "Раньше этого времени TickTrack не предлагает сформировать план на день и не напоминает о работе.")
+                        Spacer()
+                        DatePicker("Начало рабочего дня", selection: morningTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
+                    Toggle(isOn: $settings.morningEnabled) {
+                        HintLabel("Формировать план на день в начале дня", hint: "В рабочий день в указанное время откроется «План на день». Если план уже собран — сразу выбор задачи, с которой начать.")
+                    }
                 } header: {
                     Text("Рабочий день")
                 } footer: {
@@ -37,30 +44,39 @@ struct SettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Перерывы и напоминания") {
-                    Toggle("Спрашивать, как записать перерыв", isOn: $settings.autopauseEnabled)
-                        .help("Когда вы вернётесь к компьютеру, TickTrack спросит, что делать со временем перерыва: записать в другую задачу (например, на созвон), в текущую, не записывать или завершить рабочий день. Если выключить, перерыв засчитывается в текущую задачу.")
-                    Stepper("Перерыв — от \(settings.autopauseMinutes) мин без мыши и клавиатуры", value: $settings.autopauseMinutes, in: 1...120)
-                        .help("Сон Mac и блокировка экрана тоже считаются перерывом.")
-                    Toggle("Напоминать, если учёт не ведётся", isOn: $settings.forgotEnabled)
-                        .help("Если вы работаете за компьютером, а учёт не ведётся, появится напоминание: начать учёт сейчас или с момента, когда он остановился.")
-                    Stepper("Через \(settings.forgotMinutes) мин работы без учёта", value: $settings.forgotMinutes, in: 1...120)
-                        .disabled(!settings.forgotEnabled)
-                        .help("Сколько минут работы без учёта ждать перед напоминанием.")
+                    Toggle(isOn: $settings.autopauseEnabled) {
+                        HintLabel("Спрашивать, как записать перерыв", hint: "Когда вы вернётесь к компьютеру, TickTrack спросит, что делать со временем перерыва: записать в другую задачу (например, на созвон), в текущую, не записывать или завершить рабочий день. Если выключить, перерыв засчитывается в текущую задачу.")
+                    }
+                    Stepper(value: $settings.autopauseMinutes, in: 1...120) {
+                        HintLabel("Перерыв — от \(settings.autopauseMinutes) мин без мыши и клавиатуры", hint: "Сон Mac и блокировка экрана тоже считаются перерывом.")
+                    }
+                    Toggle(isOn: $settings.forgotEnabled) {
+                        HintLabel("Напоминать, если учёт не ведётся", hint: "Если вы работаете за компьютером, а учёт не ведётся, появится напоминание: начать учёт сейчас или с момента, когда он остановился.")
+                    }
+                    Stepper(value: $settings.forgotMinutes, in: 1...120) {
+                        HintLabel("Через \(settings.forgotMinutes) мин работы без учёта", hint: "Сколько минут работы без учёта ждать перед напоминанием.")
+                    }
+                    .disabled(!settings.forgotEnabled)
                 }
                 Section("Списание") {
-                    Stepper("Не списывать активность меньше \(settings.minimumMinutes) мин", value: $settings.minimumMinutes, in: 0...30)
-                        .help("Короткое время по задаче не уходит в YouTrack, например, если вы быстро переключились или нажали не ту задачу. 0 — списывать всё.")
-                    Toggle("Проверять списание перед отправкой", isOn: $settings.cardEnabled)
-                        .help("После каждой задачи появляется карточка: можно выбрать тип работы, написать комментарий или отказаться от списания. Если выключить, время уходит в YouTrack сразу, без вашего комментария.")
-                    Stepper("Если не трогать, отправить через \(settings.cardSeconds) с", value: $settings.cardSeconds, in: 5...120, step: 5)
-                        .disabled(!settings.cardEnabled)
-                        .help("Пока карточку не трогаете, идёт отсчёт. Выбрали тип или начали писать комментарий — карточка ждёт вас.")
-                    Picker("Тип работы по умолчанию", selection: $settings.defaultType) {
-                        ForEach(WorkType.allCases) { Text(verbatim: $0.title).tag($0) }
+                    Stepper(value: $settings.minimumMinutes, in: 0...30) {
+                        HintLabel("Не списывать активность меньше \(settings.minimumMinutes) мин", hint: "Короткое время по задаче не уходит в YouTrack, например, если вы быстро переключились или нажали не ту задачу. 0 — списывать всё.")
                     }
-                    .help("Подставляется для задач, по которым ещё не списывали. Дальше для каждой задачи запоминается последний выбранный тип. Тип пишется в начале комментария: «Анализ: …».")
-                    Stepper("Норма в день: \(settings.dailyNorm.hoursText) ч", value: $settings.dailyNormMinutes, in: 30...(16 * 60), step: 30)
-                        .help("Сколько часов в день вы обычно списываете. В меню и в итоге дня видно, сколько процентов нормы набрано и сколько осталось.")
+                    Toggle(isOn: $settings.cardEnabled) {
+                        HintLabel("Проверять списание перед отправкой", hint: "После каждой задачи появляется карточка: можно выбрать тип работы, написать комментарий или отказаться от списания. Если выключить, время уходит в YouTrack сразу, без вашего комментария.")
+                    }
+                    Stepper(value: $settings.cardSeconds, in: 5...120, step: 5) {
+                        HintLabel("Если не трогать, отправить через \(settings.cardSeconds) с", hint: "Пока карточку не трогаете, идёт отсчёт. Выбрали тип или начали писать комментарий — карточка ждёт вас.")
+                    }
+                    .disabled(!settings.cardEnabled)
+                    Picker(selection: $settings.defaultType) {
+                        ForEach(WorkType.allCases) { Text(verbatim: $0.title).tag($0) }
+                    } label: {
+                        HintLabel("Тип работы по умолчанию", hint: "Подставляется для задач, по которым ещё не списывали. Дальше для каждой задачи запоминается последний выбранный тип. Тип пишется в начале комментария: «Анализ: …».")
+                    }
+                    Stepper(value: $settings.dailyNormMinutes, in: 30...(16 * 60), step: 30) {
+                        HintLabel("Норма в день: \(settings.dailyNorm.hoursText) ч", hint: "Сколько часов в день вы обычно списываете. В меню и в итоге дня видно, сколько процентов нормы набрано и сколько осталось.")
+                    }
                 }
                 Section("Вид и клавиши") {
                     Picker("В строке меню", selection: $settings.menuBarMode) {
@@ -115,6 +131,52 @@ struct SettingsView: View {
                 model.settings.morningTime = (parts.hour ?? 9) * 60 + (parts.minute ?? 0)
             }
         )
+    }
+}
+
+/// Название настройки со значком ⓘ: пояснение открывается при наведении на значок и по щелчку.
+/// Обычная подсказка (`.help`) не видна, пока её не наведёшь, и не показывается, если приложение не активно.
+private struct HintLabel: View {
+    let title: LocalizedStringKey
+    let hint: LocalizedStringKey
+
+    init(_ title: LocalizedStringKey, hint: LocalizedStringKey) {
+        self.title = title
+        self.hint = hint
+    }
+
+    @State private var shown = false
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(title)
+            Image(systemName: "info.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(hovering || shown ? .primary : .secondary)
+                .contentShape(Circle())
+                .onHover { over in
+                    hovering = over
+                    if over {
+                        // Небольшая задержка: значок не открывает пояснение, когда мышь просто проходит мимо.
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(250))
+                            if hovering { shown = true }
+                        }
+                    } else {
+                        shown = false
+                    }
+                }
+                .onTapGesture { shown.toggle() }
+                .popover(isPresented: $shown, arrowEdge: .bottom) {
+                    Text(hint)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: 280, alignment: .leading)
+                        .padding(12)
+                }
+                .accessibilityLabel(Text(hint))
+        }
     }
 }
 
