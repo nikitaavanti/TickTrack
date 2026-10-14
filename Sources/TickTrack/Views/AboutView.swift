@@ -16,7 +16,7 @@ struct AboutView: View {
     }
 
     private var copyright: String {
-        info["NSHumanReadableCopyright"] as? String ?? "© 2026 Никита Колганов"
+        info["NSHumanReadableCopyright"] as? String ?? "© 2026 Никита Колганов. Все права защищены."
     }
 
     var body: some View {
@@ -30,11 +30,21 @@ struct AboutView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
             VStack(spacing: 2) {
-                Text("Разработчик — Никита Колганов")
+                Text("Создатель — Никита Колганов")
                 Link(Self.email, destination: URL(string: "mailto:\(Self.email)")!)
             }
             .padding(.top, 4)
-            Text(verbatim: copyright).font(.caption).foregroundStyle(.secondary).padding(.top, 8)
+            VStack(spacing: 8) {
+                Text(verbatim: copyright)
+                // Оговорка о чужом товарном знаке: приложение не выдаёт себя за продукт JetBrains.
+                // Неразрывные пробелы не дают строке оборваться на «не» или разорвать «JetBrains s.r.o.».
+                Text("YouTrack — зарегистрированный товарный знак JetBrains\u{00A0}s.r.o. TickTrack — независимое приложение, не\u{00A0}связанное с JetBrains\u{00A0}s.r.o. и не\u{00A0}одобренное ею.")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 8)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 24)
