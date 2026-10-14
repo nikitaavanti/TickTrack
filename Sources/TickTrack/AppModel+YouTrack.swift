@@ -224,7 +224,11 @@ extension AppModel {
                         issueId: entry.issueId, minutes: entry.minutes, text: entry.comment, date: date
                     )
                     mutateState { $0.markCreated(entryId: entry.id, workItemId: workItemId, issueId: entry.issueId, revision: entry.revision) }
-                    toast("Списано в YouTrack", "\(entry.issueId) · \(Fmt.hm(entry.minutes)) · «\(Fmt.short(entry.comment, 44))»")
+                    // Без комментария не выводим пустые «».
+                    var details = "\(entry.issueId) · \(Fmt.hm(entry.minutes))"
+                    let comment = entry.comment.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !comment.isEmpty { details += " · «\(Fmt.short(comment, 44))»" }
+                    toast("Списано в YouTrack", details)
                 case .pendingUpdate:
                     guard let workItemId = entry.workItemId else { continue }
                     try await api.updateWorkItem(

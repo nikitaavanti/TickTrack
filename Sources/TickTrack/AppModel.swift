@@ -173,18 +173,13 @@ final class AppModel {
 
     // MARK: - Строка меню
 
-    var menuBarTitle: String {
-        if let current = state.current {
-            if settings.menuBarMode == .idAndTitle, let summary = issue(current.issueId)?.summary, !summary.isEmpty {
-                return current.issueId + " " + Fmt.short(summary, 16)
-            }
-            return current.issueId
+    /// Текст рядом с котом — только текущая задача. Без учёта текста нет, состояние видно по коту и точке.
+    var menuBarTitle: String? {
+        guard let current = state.current else { return nil }
+        if settings.menuBarMode == .idAndTitle, let summary = issue(current.issueId)?.summary, !summary.isEmpty {
+            return current.issueId + " " + Fmt.short(summary, 16)
         }
-        switch state.status {
-        case .paused: return "Учёт остановлен"
-        case .idle: return "Начать работу"
-        default: return "Начать день"
-        }
+        return current.issueId
     }
 
     var statusToolTip: String {

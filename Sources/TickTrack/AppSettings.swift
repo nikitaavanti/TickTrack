@@ -65,16 +65,16 @@ final class AppSettings {
         defaults.register(defaults: [
             Key.inProgressQuery: "for: me State: {In Progress}",
             Key.autopauseEnabled: true,
-            Key.autopauseMinutes: 5,
+            Key.autopauseMinutes: 10,
             Key.forgotEnabled: true,
             Key.forgotMinutes: 10,
-            Key.morningEnabled: false,
-            Key.morningTime: 9 * 60 + 30,
+            Key.morningEnabled: true,
+            Key.morningTime: 9 * 60,
             Key.minimumMinutes: 2,
             Key.cardEnabled: true,
-            Key.cardSeconds: 15,
-            Key.defaultType: WorkType.analysis.rawValue,
-            Key.dailyNormMinutes: 8 * 60,
+            Key.cardSeconds: 10,
+            Key.defaultType: WorkType.unspecified.rawValue,
+            Key.dailyNormMinutes: 7 * 60,
             Key.menuBarMode: MenuBarTitleMode.idOnly.rawValue,
             Key.launchAtLogin: true,
         ])
@@ -91,7 +91,7 @@ final class AppSettings {
         minimumMinutes = max(0, defaults.integer(forKey: Key.minimumMinutes))
         cardEnabled = defaults.bool(forKey: Key.cardEnabled)
         cardSeconds = max(5, defaults.integer(forKey: Key.cardSeconds))
-        defaultType = WorkType(rawValue: defaults.string(forKey: Key.defaultType) ?? "") ?? .analysis
+        defaultType = WorkType(rawValue: defaults.string(forKey: Key.defaultType) ?? "") ?? .unspecified
         dailyNormMinutes = DailyNorm(minutes: defaults.integer(forKey: Key.dailyNormMinutes)).minutes
         menuBarMode = MenuBarTitleMode(rawValue: defaults.string(forKey: Key.menuBarMode) ?? "") ?? .idOnly
         hotKey = defaults.data(forKey: Key.hotKey).flatMap { try? JSONDecoder().decode(HotKeyShortcut.self, from: $0) } ?? .standard

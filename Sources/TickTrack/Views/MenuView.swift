@@ -43,7 +43,7 @@ struct MenuView: View {
                 MenuRow(icon: "arrow.uturn.backward", title: Text("Я забыл переключиться…")) { run(model.openReassign) }
             }
             if state.current != nil || state.status == .paused {
-                MenuRow(icon: "stop", title: Text("Завершить рабочий день")) { run { model.endDay() } }
+                MenuRow(icon: "stop.fill", title: Text("Завершить рабочий день")) { run { model.endDay() } }
             }
             if state.current != nil || state.status == .paused {
                 Divider().padding(.vertical, 4)

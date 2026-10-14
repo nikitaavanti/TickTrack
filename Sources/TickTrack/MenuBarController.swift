@@ -128,7 +128,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     private func refreshStatusItem() {
         guard let button = statusItem.button else { return }
         button.image = StatusIcon.image(for: model.indicator)
-        button.title = " " + model.menuBarTitle
+        button.title = model.menuBarTitle.map { " " + $0 } ?? ""
         button.toolTip = model.statusToolTip
     }
 
@@ -147,7 +147,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 }
 
 /// Кот из `Support/MenuBar` (в ресурсах приложения): спит — учёт не идёт, щурится — учёт остановлен посреди дня, смотрит — учёт идёт.
-/// Рядом цветная точка: зелёная — учёт идёт, жёлтая — учёт остановлен. Когда учёт не идёт («Начать день», «Начать работу»), точки нет. Без ресурсов (`swift run`) вместо кота часы.
+/// Рядом цветная точка: зелёная — учёт идёт, жёлтая — учёт остановлен. Когда учёт не идёт (день не начат или задача не выбрана), точки нет. Без ресурсов (`swift run`) вместо кота часы.
 enum StatusIcon {
     private static let cats: [Indicator: NSImage] = {
         let names: [Indicator: String] = [.idle: "CatSleeping", .paused: "CatPaused", .running: "CatActive"]
