@@ -34,6 +34,10 @@ enum DebugSnapshots {
             await model.sync()
             model.toast("Не списано", "ORG-3 · 1 мин, это короче 2 мин")
             render(CardStackView(model: model), "6-toasts", folder)
+            // Напоминание о забытом старте: три кнопки должны поместиться в ширину карточки.
+            model.reminder = Reminder(kind: .paused, minutes: 17, since: model.now.addingTimeInterval(-17 * 60), issueId: "ATL-1482")
+            render(CardStackView(model: model), "6b-reminder", folder)
+            model.reminder = nil
             await model.refreshExternal(force: true)
             render(LogView(model: model, close: {}), "7-log", folder)
             model.mutateState { $0.previousPlan = ["ATL-1482", "ATL-1490", "ATL-1501", "LYR-902", "VEG-219", "ORG-3", "ATL-1999"] }

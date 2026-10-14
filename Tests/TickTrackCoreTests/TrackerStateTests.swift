@@ -8,7 +8,7 @@ private let calendar: Calendar = {
     return c
 }()
 
-private let config = TrackerConfig(rules: WriteOffRules(roundUpToFive: true, minimumMinutes: 2), defaultType: .analysis, calendar: calendar)
+private let config = TrackerConfig(rules: WriteOffRules(minimumMinutes: 2), defaultType: .analysis, calendar: calendar)
 
 private func at(_ hour: Int, _ minute: Int, day: Int = 12) -> Date {
     calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
@@ -19,17 +19,6 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
 }
 
 @Suite struct RulesTests {
-    @Test func roundsUpToFive() {
-        let rules = WriteOffRules(roundUpToFive: true, minimumMinutes: 2)
-        #expect(rules.billableMinutes(raw: 42) == 45)
-        #expect(rules.billableMinutes(raw: 45) == 45)
-        #expect(rules.billableMinutes(raw: 2) == 5)
-    }
-
-    @Test func keepsMinutesWithoutRounding() {
-        #expect(WriteOffRules(roundUpToFive: false, minimumMinutes: 2).billableMinutes(raw: 42) == 42)
-    }
-
     @Test func commentTypeChangeKeepsText() {
         let text = "Анализ: разобрал замечания"
         #expect(CommentText.replacingType(in: text, with: .call) == "Созвон: разобрал замечания")
@@ -40,6 +29,14 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
         #expect(CommentText.finalized("Анализ: ", type: .analysis) == "Анализ")
         #expect(CommentText.finalized("  ", type: .testing) == "Тестирование")
         #expect(CommentText.finalized("Анализ: готово", type: .analysis) == "Анализ: готово")
+    }
+
+    @Test func unspecifiedTypeHasNoPrefix() {
+        #expect(CommentText.initial(for: .unspecified) == "")
+        #expect(CommentText.replacingType(in: "Анализ: разобрал замечания", with: .unspecified) == "разобрал замечания")
+        #expect(CommentText.replacingType(in: "разобрал замечания", with: .call) == "Созвон: разобрал замечания")
+        #expect(CommentText.type(of: "Без типа: текст") == nil)
+        #expect(CommentText.finalized("  ", type: .unspecified) == "")
     }
 
     @Test func youTrackDateIsUTCMidnightOfLocalDay() {
@@ -55,14 +52,14 @@ private func drafts(_ events: [TrackerEvent]) -> [SegmentDraft] {
 }
 
 @Suite struct TrackingTests {
-    @Test func switchingCreatesRoundedDraft() {
+    @Test func switchingCreatesDraftWithoutRounding() {
         var state = TrackerState()
         _ = state.start(issueId: "A-1", at: at(10, 0), config: config)
         let events = state.start(issueId: "B-2", at: at(10, 42), config: config)
         let draft = try! #require(drafts(events).first)
         #expect(draft.issueId == "A-1")
         #expect(draft.rawMinutes == 42)
-        #expect(draft.minutes == 45)
+        #expect(draft.minutes == 42)
         #expect(state.current == ActiveSegment(issueId: "B-2", start: at(10, 42)))
         #expect(state.plan == ["A-1", "B-2"])
     }

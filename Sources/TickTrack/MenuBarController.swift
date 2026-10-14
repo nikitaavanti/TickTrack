@@ -146,25 +146,43 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     }
 }
 
-/// Часы и цветная точка состояния: зелёная — учёт идёт, жёлтая — пауза, серая — не идёт.
+/// Кот из `Support/MenuBar` (в ресурсах приложения): спит — учёт не идёт, щурится — учёт остановлен посреди дня, смотрит — учёт идёт.
+/// Рядом цветная точка: зелёная — учёт идёт, жёлтая — учёт остановлен. Когда учёт не идёт («Начать день», «Начать работу»), точки нет. Без ресурсов (`swift run`) вместо кота часы.
 enum StatusIcon {
+    private static let cats: [Indicator: NSImage] = {
+        let names: [Indicator: String] = [.idle: "CatSleeping", .paused: "CatPaused", .running: "CatActive"]
+        // `image(forResource:)` сам подхватывает @2x рядом с файлом.
+        return names.compactMapValues { Bundle.main.image(forResource: $0) }
+    }()
+
     static func image(for indicator: Indicator) -> NSImage {
-        let dotColor: NSColor = switch indicator {
+        let dotColor: NSColor? = switch indicator {
         case .running: .systemGreen
         case .paused: .systemYellow
-        case .idle: .systemGray
+        case .idle: nil
         }
-        let size = NSSize(width: 21, height: 16)
-        // Рисуем при каждом отображении: цвет часов берётся из текущего оформления строки меню.
-        let image = NSImage(size: size, flipped: false) { _ in
-            let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-                .applying(.init(paletteColors: [.labelColor]))
-            if let clock = NSImage(systemSymbolName: "clock", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
-                let clockSize = clock.size
-                clock.draw(in: NSRect(x: 0, y: (size.height - clockSize.height) / 2, width: clockSize.width, height: clockSize.height))
+        let cat = cats[indicator]
+        // Кот 28×22, точка — в его пустом правом нижнем углу, под «Z» спящего кота.
+        let size = cat == nil ? NSSize(width: 21, height: 16) : NSSize(width: 28, height: 22)
+        let dot = cat == nil ? NSRect(x: 15, y: 1, width: 6, height: 6) : NSRect(x: 22, y: 0, width: 5, height: 5)
+        // Рисуем при каждом отображении: цвет кота или часов берётся из текущего оформления строки меню.
+        let image = NSImage(size: size, flipped: false) { rect in
+            if let cat {
+                cat.draw(in: rect)
+                NSColor.labelColor.setFill()
+                rect.fill(using: .sourceAtop)
+            } else {
+                let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+                    .applying(.init(paletteColors: [.labelColor]))
+                if let clock = NSImage(systemSymbolName: "clock", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+                    let clockSize = clock.size
+                    clock.draw(in: NSRect(x: 0, y: (size.height - clockSize.height) / 2, width: clockSize.width, height: clockSize.height))
+                }
             }
-            dotColor.setFill()
-            NSBezierPath(ovalIn: NSRect(x: 15, y: 1, width: 6, height: 6)).fill()
+            if let dotColor {
+                dotColor.setFill()
+                NSBezierPath(ovalIn: dot).fill()
+            }
             return true
         }
         image.isTemplate = false

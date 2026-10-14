@@ -47,7 +47,6 @@ final class AppSettings {
     /// Минуты от полуночи.
     var morningTime: Int { didSet { defaults.set(morningTime, forKey: Key.morningTime) } }
 
-    var roundUpToFive: Bool { didSet { defaults.set(roundUpToFive, forKey: Key.roundUpToFive) } }
     var minimumMinutes: Int { didSet { defaults.set(minimumMinutes, forKey: Key.minimumMinutes) } }
     var cardEnabled: Bool { didSet { defaults.set(cardEnabled, forKey: Key.cardEnabled) } }
     var cardSeconds: Int { didSet { defaults.set(cardSeconds, forKey: Key.cardSeconds) } }
@@ -71,7 +70,6 @@ final class AppSettings {
             Key.forgotMinutes: 10,
             Key.morningEnabled: false,
             Key.morningTime: 9 * 60 + 30,
-            Key.roundUpToFive: true,
             Key.minimumMinutes: 2,
             Key.cardEnabled: true,
             Key.cardSeconds: 15,
@@ -90,7 +88,6 @@ final class AppSettings {
         forgotMinutes = max(1, defaults.integer(forKey: Key.forgotMinutes))
         morningEnabled = defaults.bool(forKey: Key.morningEnabled)
         morningTime = defaults.integer(forKey: Key.morningTime)
-        roundUpToFive = defaults.bool(forKey: Key.roundUpToFive)
         minimumMinutes = max(0, defaults.integer(forKey: Key.minimumMinutes))
         cardEnabled = defaults.bool(forKey: Key.cardEnabled)
         cardSeconds = max(5, defaults.integer(forKey: Key.cardSeconds))
@@ -102,7 +99,7 @@ final class AppSettings {
     }
 
     var rules: WriteOffRules {
-        WriteOffRules(roundUpToFive: roundUpToFive, minimumMinutes: minimumMinutes)
+        WriteOffRules(minimumMinutes: minimumMinutes)
     }
 
     var dailyNorm: DailyNorm { DailyNorm(minutes: dailyNormMinutes) }
@@ -122,7 +119,6 @@ final class AppSettings {
         static let forgotMinutes = "forgotMinutes"
         static let morningEnabled = "morningEnabled"
         static let morningTime = "morningTime"
-        static let roundUpToFive = "roundUpToFive"
         static let minimumMinutes = "minimumMinutes"
         static let cardEnabled = "cardEnabled"
         static let cardSeconds = "cardSeconds"

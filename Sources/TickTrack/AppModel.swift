@@ -181,7 +181,7 @@ final class AppModel {
             return current.issueId
         }
         switch state.status {
-        case .paused: return "Пауза"
+        case .paused: return "Учёт остановлен"
         case .idle: return "Начать работу"
         default: return "Начать день"
         }
@@ -210,7 +210,6 @@ final class AppModel {
 
     var elapsedMinutes: Int { state.elapsedMinutes(at: now) }
 
-    var billableNow: Int { settings.rules.billableMinutes(raw: elapsedMinutes) }
 
     var todayEntries: [LogEntry] { state.entries(on: now, calendar: calendar) }
 
@@ -258,7 +257,7 @@ final class AppModel {
                 if settings.cardEnabled {
                     state.drafts.append(draft)
                 } else {
-                    state.commit(draft, comment: draft.suggestedType.rawValue, type: draft.suggestedType)
+                    state.commit(draft, comment: CommentText.initial(for: draft.suggestedType), type: draft.suggestedType)
                     committed = true
                 }
             case .tooShort(let id, let raw):
@@ -523,7 +522,7 @@ final class AppModel {
     }
 
     func snoozeReminder() {
-        reminderSnoozedUntil = Date().addingTimeInterval(30 * 60)
+        reminderSnoozedUntil = Date().addingTimeInterval(10 * 60)
         reminder = nil
     }
 

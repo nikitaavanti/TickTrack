@@ -161,7 +161,7 @@ struct HeightReporting<Content: View>: View {
 final class CardPanelController {
     private let panel = FloatingPanel(level: .statusBar)
     private let model: AppModel
-    static let width: CGFloat = 370
+    static let width: CGFloat = 390
 
     init(model: AppModel) {
         self.model = model

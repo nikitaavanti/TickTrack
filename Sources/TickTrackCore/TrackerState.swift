@@ -255,7 +255,7 @@ public struct TrackerState: Codable, Sendable {
             if config.rules.isTooShort(raw: raw) { return .tooShort(issueId: issueId, rawMinutes: raw) }
             return .draft(SegmentDraft(
                 issueId: issueId, start: part.start, end: part.end, rawMinutes: raw,
-                minutes: config.rules.billableMinutes(raw: raw),
+                minutes: raw,
                 suggestedType: type ?? lastTypeByIssue[issueId] ?? config.defaultType
             ))
         }

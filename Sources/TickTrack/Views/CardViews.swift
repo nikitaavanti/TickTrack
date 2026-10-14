@@ -25,20 +25,24 @@ struct CardStackView: View {
 }
 
 /// Карточка в стиле уведомления macOS: иконка приложения слева, стекло, крупное скругление,
-/// крестик закрытия в левом верхнем углу при наведении.
-private struct NotificationCard<Content: View>: View {
+/// крестик закрытия в левом верхнем углу при наведении. Кнопки `actions` — под иконкой, на всю ширину карточки.
+private struct NotificationCard<Content: View, Actions: View>: View {
     /// Значок поверх иконки приложения: что за уведомление (списано, ошибка, напоминание).
     var badge: (symbol: String, color: Color)?
     var closeHelp: LocalizedStringKey = "Закрыть"
     let onClose: () -> Void
     @ViewBuilder var content: Content
+    @ViewBuilder var actions: Actions
 
     @State private var hovering = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            AppIconBadge(badge: badge)
-            content.frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                AppIconBadge(badge: badge)
+                content.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            actions
         }
         .padding(.horizontal, 12).padding(.vertical, 11)
         .frame(width: CardPanelController.width - 20, alignment: .leading)
@@ -60,6 +64,15 @@ private struct NotificationCard<Content: View>: View {
             }
         }
         .onHover { over in withAnimation(.easeOut(duration: 0.12)) { hovering = over } }
+    }
+}
+
+extension NotificationCard where Actions == EmptyView {
+    init(
+        badge: (symbol: String, color: Color)? = nil, closeHelp: LocalizedStringKey = "Закрыть",
+        onClose: @escaping () -> Void, @ViewBuilder content: () -> Content
+    ) {
+        self.init(badge: badge, closeHelp: closeHelp, onClose: onClose, content: content, actions: { EmptyView() })
     }
 }
 
@@ -130,11 +143,9 @@ struct WriteOffCard: View {
                     }
                     .issueContextMenu(model, draft.issueId)
                     HStack(spacing: 0) {
-                        IssueIDLink(model: model, id: draft.issueId, font: .system(size: 12, design: .monospaced))
+                        IssueIDLink(model: model, id: draft.issueId, font: .system(size: 12).monospacedDigit())
                         Text(verbatim: " · ").foregroundStyle(.secondary)
                         Text("списать \(Fmt.hm(draft.minutes))").fontWeight(.semibold)
-                        Text(verbatim: " · ").foregroundStyle(.secondary)
-                        Text("факт \(Fmt.hm(draft.rawMinutes))").foregroundStyle(.secondary)
                     }
                     .font(.system(size: 12)).monospacedDigit().lineLimit(1)
                 }
@@ -166,8 +177,14 @@ struct WriteOffCard: View {
                         }
                         .opacity(holding ? 0 : 1)
                     Button("Не списывать") { finish(commit: false) }
-                    Button("Списать") { finish(commit: true) }
-                        .buttonStyle(.glassProminent)
+                    // Enter списывает только из поля комментария: панель неактивирующая, без фокуса клавиши не доходят.
+                    Button { finish(commit: true) } label: {
+                        HStack(spacing: 4) {
+                            Text("Списать")
+                            if fieldFocused { Text(verbatim: "↩").opacity(0.7) }
+                        }
+                    }
+                    .buttonStyle(.glassProminent)
                 }
                 .controlSize(.small)
             }
@@ -205,28 +222,29 @@ struct ReminderCard: View {
     let reminder: Reminder
 
     var body: some View {
-        NotificationCard(badge: ("clock", .orange), closeHelp: "Напомнить через 30 мин", onClose: model.snoozeReminder) {
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    CardHeader(title: Text("Учёт не идёт")) { Text(verbatim: Fmt.clock(model.now)) }
-                    message.font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
-                }
-                HStack {
-                    Spacer()
-                    Button("Через 30 мин", action: model.snoozeReminder)
-                    switch reminder.kind {
-                    case .dayNotStarted:
-                        Button("Начать рабочий день") { model.startDay() }.buttonStyle(.glassProminent)
-                    case .paused, .untracked:
-                        if reminder.issueId != nil {
-                            Button("С этой минуты") { model.startFromReminder(backdated: false) }
-                            Button("Начать с \(Fmt.clock(reminder.since))") { model.startFromReminder(backdated: true) }
-                                .buttonStyle(.glassProminent)
-                        }
+        NotificationCard(badge: ("clock", .orange), closeHelp: "Напомнить через 10 мин", onClose: model.snoozeReminder) {
+            VStack(alignment: .leading, spacing: 2) {
+                CardHeader(title: Text("Учёт не идёт")) { Text(verbatim: Fmt.clock(model.now)) }
+                message.font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
+            }
+        } actions: {
+            HStack(spacing: 4) {
+                Button("Напомнить 10 мин", action: model.snoozeReminder)
+                    .help("Напомнить через 10 мин")
+                switch reminder.kind {
+                case .dayNotStarted:
+                    Button("Начать рабочий день") { model.startDay() }.buttonStyle(.glassProminent)
+                case .paused, .untracked:
+                    if reminder.issueId != nil {
+                        Button("Учёт с этой минуты") { model.startFromReminder(backdated: false) }
+                        Button("Учёт с \(Fmt.clock(reminder.since))") { model.startFromReminder(backdated: true) }
+                            .help("Начать учёт задним числом, с \(Fmt.clock(reminder.since)), когда он остановился")
+                            .buttonStyle(.glassProminent)
                     }
                 }
-                .controlSize(.small)
             }
+            .controlSize(.small)
+            .fixedSize()
         }
     }
 
@@ -235,7 +253,7 @@ struct ReminderCard: View {
         case .dayNotStarted:
             Text("Вы работаете уже \(reminder.minutes) мин, а рабочий день не начат.")
         case .paused:
-            Text("Учёт на паузе уже \(reminder.minutes) мин, а за компьютером идёт работа.")
+            Text("Учёт остановлен уже \(reminder.minutes) мин, а за компьютером идёт работа.")
                 + (reminder.issueId.map { Text(" Продолжить \($0)?") } ?? Text(""))
         case .untracked:
             Text("Вы работаете уже \(reminder.minutes) мин без учёта.")

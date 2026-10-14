@@ -7,6 +7,8 @@ public enum WorkType: String, CaseIterable, Codable, Sendable, Identifiable {
     case call = "Созвон"
     case testing = "Тестирование"
     case documentation = "Документация"
+    /// Тип не указан: у комментария нет приставки.
+    case unspecified = "Без типа"
 
     public var id: String { rawValue }
     public var title: String { rawValue }

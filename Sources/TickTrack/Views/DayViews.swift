@@ -268,7 +268,7 @@ struct LogView: View {
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("Итого списано").foregroundStyle(.secondary)
-                Text(verbatim: Fmt.hm(model.totalToday)).font(.system(size: 24, weight: .semibold, design: .monospaced))
+                Text(verbatim: Fmt.hm(model.totalToday)).font(.system(size: 24, weight: .semibold).monospacedDigit())
                 normText(model, showingNorm: true).foregroundStyle(.secondary)
             }
             Text("Правка и удаление сразу меняют запись в YouTrack.").font(.caption).foregroundStyle(.secondary)
@@ -323,7 +323,7 @@ struct LogView: View {
 
     private func row(_ entry: LogEntry) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(verbatim: Fmt.clock(entry.end)).font(.system(size: 12.5, design: .monospaced)).frame(width: 50, alignment: .leading)
+            Text(verbatim: Fmt.clock(entry.end)).font(.system(size: 12.5).monospacedDigit()).frame(width: 50, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 IssueIDLink(model: model, id: entry.issueId)
                 Text(verbatim: entry.comment).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -336,7 +336,7 @@ struct LogView: View {
                 }
             }
             Spacer()
-            Text(verbatim: Fmt.hm(entry.minutes)).font(.system(size: 12.5, design: .monospaced))
+            Text(verbatim: Fmt.hm(entry.minutes)).font(.system(size: 12.5).monospacedDigit())
             Button("Изменить") { beginEdit(entry) }.buttonStyle(.link).frame(width: 70, alignment: .trailing)
         }
         .padding(.vertical, 6)
@@ -347,7 +347,7 @@ struct LogView: View {
     /// Списание, сделанное прямо в YouTrack: только просмотр, править его пока можно в самом YouTrack.
     private func externalRow(_ item: ExternalWorkItem) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(verbatim: "—").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(.secondary)
+            Text(verbatim: "—").font(.system(size: 12.5).monospacedDigit()).foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 IssueIDLink(model: model, id: item.issueId)
@@ -356,7 +356,7 @@ struct LogView: View {
                 }
             }
             Spacer()
-            Text(verbatim: Fmt.hm(item.minutes)).font(.system(size: 12.5, design: .monospaced))
+            Text(verbatim: Fmt.hm(item.minutes)).font(.system(size: 12.5).monospacedDigit())
             Text("из YouTrack").font(.caption).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
                 .help("Списано напрямую в YouTrack. Изменить или удалить его можно там.")
         }

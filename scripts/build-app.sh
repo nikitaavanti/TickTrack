@@ -15,6 +15,7 @@ cp "$BIN/TickTrack" "$APP/Contents/MacOS/TickTrack"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp Support/AboutAnimation.png "$APP/Contents/Resources/AboutAnimation.png"
+cp Support/MenuBar/*.png "$APP/Contents/Resources/"
 
 # Номер сборки = число коммитов: растёт сам, вручную не трогаем. Версия для людей — в Support/Info.plist.
 BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"

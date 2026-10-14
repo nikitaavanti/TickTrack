@@ -42,7 +42,7 @@ struct MenuRow: View {
     var icon: String?
     var mark: String = ""
     var title: Text
-    /// `ID · проект` у задач — моноширинным шрифтом.
+    /// ID задачи и пометки к ней.
     var subtitle: String?
     /// Задача, ID которой в начале `subtitle` — ссылка на неё в YouTrack.
     var issueLink: (model: AppModel, id: String)?
@@ -70,12 +70,12 @@ struct MenuRow: View {
                     if let subtitle {
                         if let issueLink, subtitle.hasPrefix(issueLink.id) {
                             HStack(spacing: 0) {
-                                IssueIDLink(model: issueLink.model, id: issueLink.id, font: .system(size: 10.5, design: .monospaced))
+                                IssueIDLink(model: issueLink.model, id: issueLink.id, font: .system(size: 11).monospacedDigit())
                                 Text(verbatim: String(subtitle.dropFirst(issueLink.id.count))).foregroundStyle(.secondary)
                             }
-                            .font(.system(size: 10.5, design: .monospaced)).lineLimit(1)
+                            .font(.system(size: 11).monospacedDigit()).lineLimit(1)
                         } else {
-                            Text(verbatim: subtitle).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                            Text(verbatim: subtitle).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
                     if let hint {
@@ -84,7 +84,7 @@ struct MenuRow: View {
                 }
                 Spacer(minLength: 4)
                 if let trailing {
-                    Text(verbatim: trailing).font(.system(size: 11.5, design: .monospaced)).monospacedDigit().foregroundStyle(.secondary)
+                    Text(verbatim: trailing).font(.system(size: 11.5).monospacedDigit()).foregroundStyle(.secondary)
                 }
                 Text(verbatim: shortcut ?? "").font(.system(size: 11.5)).foregroundStyle(.secondary).frame(width: 26, alignment: .trailing)
             }
@@ -178,6 +178,8 @@ struct IssueSearchResults: View {
     var onCreate: ((String) -> Void)?
     /// Задача, которую не показываем в результатах (например, текущая в «Забыл переключиться»).
     var excluding: String?
+    /// Сообщает высоту списка результатов (без строк поиска и создания под ним) — по ней меню делит место.
+    var onListHeight: ((CGFloat) -> Void)?
 
     @State private var loading = false
     /// Искать во всех проектах, а не только в «Моих» — до следующего открытия поиска.
@@ -200,13 +202,16 @@ struct IssueSearchResults: View {
                     .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.vertical, 6)
             } else {
                 let shown = Array(results.prefix(limit))
-                if let visibleRows, shown.count > visibleRows {
-                    // Половина следующей строки видна — понятно, что список прокручивается.
-                    ScrollView { rows(shown) }.frame(height: (CGFloat(visibleRows) + 0.5) * Self.rowHeight)
-                    if onCreate != nil { Divider().padding(.vertical, 2) }
-                } else {
-                    rows(shown)
+                VStack(alignment: .leading, spacing: 0) {
+                    if let visibleRows, shown.count > visibleRows {
+                        // Половина следующей строки видна — понятно, что список прокручивается.
+                        ScrollView { rows(shown) }.thinScrollIndicator().frame(height: (CGFloat(visibleRows) + 0.5) * Self.rowHeight)
+                        if onCreate != nil { Divider().padding(.vertical, 2) }
+                    } else {
+                        rows(shown)
+                    }
                 }
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { onListHeight?($0) }
             }
             if !trimmed.isEmpty, model.isSearchLimited(trimmed) {
                 if everywhere {
@@ -238,7 +243,7 @@ struct IssueSearchResults: View {
     }
 
     /// Высота строки с подписью в `MenuRow`.
-    private static let rowHeight: CGFloat = 38
+    static let rowHeight: CGFloat = 38
 
     private func rows(_ issues: [Issue]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -246,7 +251,7 @@ struct IssueSearchResults: View {
                 MenuRow(
                     mark: model.state.plan.contains(issue.idReadable) ? "•" : "",
                     title: Text(verbatim: issue.summary),
-                    subtitle: issue.idReadable + " · " + issue.projectName + (model.isInProgress(issue.idReadable) ? " · в работе у вас" : "")
+                    subtitle: issue.idReadable + (model.isInProgress(issue.idReadable) ? " · в работе у вас" : "")
                 ) { onPick(issue) }
             }
         }
@@ -316,7 +321,7 @@ func normText(_ model: AppModel, showingNorm: Bool = false) -> Text {
 struct IssueIDLink: View {
     let model: AppModel
     let id: String
-    var font: Font = .system(size: 11.5, design: .monospaced)
+    var font: Font = .system(size: 11.5).monospacedDigit()
 
     @State private var hovering = false
     @Environment(\.menuRowHighlighted) private var rowHighlighted
@@ -357,4 +362,33 @@ extension View {
     func issueContextMenu(_ model: AppModel, _ id: String) -> some View {
         contextMenu { IssueMenuItems(model: model, id: id) }
     }
+}
+
+/// Тонкая полоса прокрутки вместо системной: при настройке «Показывать полосы прокрутки: всегда»
+/// системная занимает 15 pt и спорит со стеклом панели.
+private struct ThinScrollIndicator: ViewModifier {
+    @State private var geometry: ScrollGeometry?
+
+    func body(content: Content) -> some View {
+        content
+            .scrollIndicators(.never)
+            .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, new in geometry = new }
+            .overlay(alignment: .topTrailing) {
+                if let geometry, geometry.contentSize.height > geometry.containerSize.height + 1 {
+                    let visible = geometry.containerSize.height
+                    let total = geometry.contentSize.height
+                    let thumb = max(visible * visible / total, 20)
+                    let progress = min(max((geometry.contentOffset.y + geometry.contentInsets.top) / (total - visible), 0), 1)
+                    Capsule()
+                        .fill(.secondary.opacity(0.45))
+                        .frame(width: 3, height: thumb)
+                        .offset(x: -1, y: progress * (visible - thumb))
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+}
+
+extension View {
+    func thinScrollIndicator() -> some View { modifier(ThinScrollIndicator()) }
 }

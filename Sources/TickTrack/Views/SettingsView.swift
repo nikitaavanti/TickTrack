@@ -22,7 +22,7 @@ struct SettingsView: View {
                 }
                 MyProjectsSection(model: model)
                 Section("Учёт времени") {
-                    Toggle("Автопауза при бездействии", isOn: $settings.autopauseEnabled)
+                    Toggle("Спрашивать о простое", isOn: $settings.autopauseEnabled)
                     Stepper("Бездействие дольше \(settings.autopauseMinutes) мин", value: $settings.autopauseMinutes, in: 1...120)
                     Toggle("Напоминать о забытом старте", isOn: $settings.forgotEnabled)
                     Stepper("Если работаю без учёта \(settings.forgotMinutes) мин", value: $settings.forgotMinutes, in: 1...120)
@@ -32,7 +32,6 @@ struct SettingsView: View {
                         .disabled(!settings.morningEnabled)
                 }
                 Section("Списание") {
-                    Toggle("Округлять вверх до 5 минут", isOn: $settings.roundUpToFive)
                     Stepper("Не списывать отрезки короче \(settings.minimumMinutes) мин", value: $settings.minimumMinutes, in: 0...30)
                     Toggle("Показывать уведомление со списанием", isOn: $settings.cardEnabled)
                     Stepper("Отправлять само через \(settings.cardSeconds) с", value: $settings.cardSeconds, in: 5...120, step: 5)
@@ -184,7 +183,7 @@ private struct MyProjectsSection: View {
                                 HStack(spacing: 6) {
                                     Text(verbatim: project.name)
                                     if project.shortName != project.name {
-                                        Text(verbatim: project.shortName).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                                        Text(verbatim: project.shortName).font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
                                     }
                                 }
                             }
