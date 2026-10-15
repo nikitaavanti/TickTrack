@@ -14,6 +14,18 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
 
     var hasOpenWindow: Bool { windows.values.contains { $0.isVisible } }
 
+    override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appDidBecomeActive), name: NSApplication.didBecomeActiveNotification, object: nil
+        )
+    }
+
+    /// Пользователь перешёл в TickTrack — окна дальше ведут себя как обычные и уходят под другие программы.
+    @objc private func appDidBecomeActive() {
+        for window in windows.values where window.level == .floating { window.level = .normal }
+    }
+
     func isOpen(_ id: String) -> Bool { windows[id]?.isVisible == true }
 
     func show<Content: View>(_ id: String, title: String, onClose: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
@@ -34,8 +46,15 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         window.title = title
         closeHandlers[id] = onClose
         if !window.isVisible { place(window, id: id, content: controller.view) }
+        window.collectionBehavior.formUnion([.moveToActiveSpace, .fullScreenAuxiliary])
         NSApp.activate()
+        // Окно, открытое самим TickTrack (план утром, «Вы вернулись» после разблокировки), macOS может не пустить
+        // на передний план: активация не по действию пользователя не отбирает фокус у текущей программы.
+        // Тогда окно оказалось бы под её окнами, а напоминания молчат, пока окно открыто. Поэтому, пока TickTrack
+        // не активен, окно держится поверх других программ.
+        window.level = NSApp.isActive ? .normal : .floating
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     func close(_ id: String) {
