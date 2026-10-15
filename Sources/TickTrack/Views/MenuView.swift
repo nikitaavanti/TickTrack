@@ -40,7 +40,6 @@ struct MenuView: View {
             searchSection
             Divider().padding(.vertical, 4)
             if state.current != nil {
-                MenuRow(icon: "stop.circle", title: Text("Остановить учёт"), shortcut: "␣") { run(model.pause) }
                 MenuRow(icon: "arrow.uturn.backward", title: Text("Я забыл переключиться…")) { run(model.openReassign) }
             }
             // Пока день начат — и на паузе, и после «Начну позже»: иначе такой день нечем завершить.
@@ -86,8 +85,21 @@ struct MenuView: View {
                 }
                 Text(verbatim: model.title(of: current.issueId)).font(.system(size: 13.5, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     .issueContextMenu(model, current.issueId)
-                Text("Идёт учёт с \(Fmt.clock(current.start))")
-                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                // Остановка — главное действие, пока идёт учёт: под таймером, а не среди команд внизу.
+                HStack {
+                    Text("Идёт учёт с \(Fmt.clock(current.start))")
+                        .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button { run(model.pause) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "stop.fill").font(.system(size: 10))
+                            Text("Остановить учёт").font(.system(size: 12.5, weight: .semibold))
+                            Text(verbatim: "␣").font(.system(size: 11.5)).opacity(0.6)
+                        }
+                    }
+                    .buttonStyle(HeaderButtonStyle())
+                    .help("Остановить учёт: время уйдёт в карточку списания")
+                }
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
         } else {
@@ -380,6 +392,30 @@ private struct BlinkingTime: View {
             Text(verbatim: parts.first ?? "")
             Text(verbatim: ":").opacity(colonVisible ? 1 : 0)
             Text(verbatim: parts.count > 1 ? parts[1] : "")
+        }
+    }
+}
+
+/// Кнопка-капсула в шапке меню; при наведении подсвечивается, как строки меню.
+private struct HeaderButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HeaderButtonBody(configuration: configuration)
+    }
+
+    private struct HeaderButtonBody: View {
+        let configuration: Configuration
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .foregroundStyle(hovering ? Color.white : Color.primary)
+                .background(Capsule().fill(hovering ? Color.accentColor : Color.secondary.opacity(0.16)))
+                .contentShape(Capsule())
+                .opacity(configuration.isPressed ? 0.7 : 1)
+                .fixedSize()
+                .onHover { hovering = $0 }
         }
     }
 }
