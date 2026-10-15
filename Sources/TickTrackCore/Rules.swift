@@ -50,6 +50,20 @@ public enum TimeMath {
     }
 }
 
+public enum RussianPlural {
+    /// Число со словом в нужной форме: «1 списание», «3 списания», «11 списаний».
+    public static func count(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
+        let tens = abs(n) % 100, units = abs(n) % 10
+        let word = if (11...14).contains(tens) { many } else if units == 1 { one } else if (2...4).contains(units) { few } else { many }
+        return "\(n) \(word)"
+    }
+
+    /// Число требует единственного числа у глагола: «1 списание уйдёт», «21 списание уйдёт», но «11 списаний уйдут».
+    public static func isSingular(_ n: Int) -> Bool {
+        abs(n) % 10 == 1 && abs(n) % 100 != 11
+    }
+}
+
 /// Рабочие дни и время начала дня. Вне расписания TickTrack сам ничего не открывает и не напоминает о начале дня.
 public struct WorkSchedule: Equatable, Sendable {
     /// Дни недели в нумерации `Calendar`: 1 — воскресенье, 2 — понедельник, … 7 — суббота.

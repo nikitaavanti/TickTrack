@@ -1,4 +1,5 @@
 import AppKit
+import Network
 import Observation
 import ServiceManagement
 import TickTrackCore
@@ -68,6 +69,11 @@ final class AppModel {
     var reminder: Reminder?
     var idlePrompt: IdlePrompt?
     var connection: ConnectionStatus = .unknown
+    /// Связь с YouTrack по ответам на запросы.
+    var link = LinkWatch()
+    /// Карточку «Нет связи» скрыли: до восстановления связи о сбое говорят только точка и строка в меню.
+    var linkCardHidden = false
+    var linkRetrying = false
     var inProgress: [Issue] = []
     var inProgressLoading = false
     /// Задачи, которых нет в YouTrack или к которым нет доступа (по последней проверке).
@@ -106,6 +112,11 @@ final class AppModel {
     /// Id текущего пользователя YouTrack: по нему забираем свои списания, сделанные напрямую в YouTrack.
     @ObservationIgnored var currentUserId: String?
     @ObservationIgnored var lastExternalRefresh = Date.distantPast
+    @ObservationIgnored var networkAvailable = true
+    @ObservationIgnored var pathMonitor: NWPathMonitor?
+    @ObservationIgnored var lastLinkProbe = Date.distantPast
+    /// Связь вернулась после показанной проблемы, а сообщение об этом ещё не показано.
+    @ObservationIgnored var recoveredFrom: LinkProblem?
 
     init(settings: AppSettings = AppSettings()) {
         self.settings = settings
@@ -126,7 +137,8 @@ final class AppModel {
     }
 
     var api: (any YouTrackAPI)? {
-        demoAPI ?? YouTrackClient(server: settings.serverURL, token: settings.token)
+        guard let base = demoAPI ?? YouTrackClient(server: settings.serverURL, token: settings.token) else { return nil }
+        return ReportingYouTrack(base: base) { [weak self] error in await self?.noteLink(error) }
     }
 
     // MARK: - Запуск
@@ -151,6 +163,7 @@ final class AppModel {
         applyHotKey()
         applyLaunchAtLogin()
         observeSystem()
+        watchNetwork()
 
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -188,10 +201,15 @@ final class AppModel {
     }
 
     var statusToolTip: String {
-        if let current = state.current {
-            return current.issueId + " — " + (issue(current.issueId)?.summary ?? "")
+        let status = if let current = state.current {
+            current.issueId + " — " + (issue(current.issueId)?.summary ?? "")
+        } else {
+            "TickTrack · открыть меню: " + settings.hotKey.display
         }
-        return "TickTrack · открыть меню: " + settings.hotKey.display
+        guard let problem = link.problem else { return status }
+        var line = problem == .tokenRejected ? "YouTrack не принял токен" : "Нет связи с YouTrack"
+        if let pending = pendingSummary { line += " · " + pending.phrase + " " + pending.verb("ждёт", "ждут") + " отправки" }
+        return status + "\n" + line
     }
 
     var indicator: Indicator {
@@ -439,6 +457,7 @@ final class AppModel {
         checkReminder()
         checkMorning()
         if state.hasPendingSync, now.timeIntervalSince(lastSyncAttempt) > 30 { syncSoon() }
+        probeLinkIfNeeded()
         if now.timeIntervalSince(lastExternalRefresh) > 5 * 60 { Task { await refreshExternal() } }
     }
 
@@ -601,7 +620,7 @@ final class AppModel {
         on(workspace, NSWorkspace.willPowerOffNotification) { $0.systemIsPoweringOff = true }
         on(workspace, NSWorkspace.willSleepNotification) { $0.wentAway(); $0.isAsleep = true }
         on(workspace, NSWorkspace.screensDidSleepNotification) { $0.wentAway(); $0.isAsleep = true }
-        on(workspace, NSWorkspace.didWakeNotification) { $0.isAsleep = false }
+        on(workspace, NSWorkspace.didWakeNotification) { $0.isAsleep = false; $0.linkAfterWake() }
         on(workspace, NSWorkspace.screensDidWakeNotification) { $0.isAsleep = false }
         on(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.wentAway(); $0.isLocked = true }
         on(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.isLocked = false }

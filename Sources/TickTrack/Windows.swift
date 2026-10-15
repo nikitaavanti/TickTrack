@@ -248,7 +248,7 @@ final class CardPanelController {
     }
 
     private func layout(height: CGFloat) {
-        let isEmpty = model.reminder == nil && model.state.drafts.isEmpty && model.toasts.isEmpty
+        let isEmpty = !model.showsLinkCard && model.reminder == nil && model.state.drafts.isEmpty && model.toasts.isEmpty
         guard !isEmpty, height > 1, let screen = NSScreen.screens.first else {
             panel.orderOut(nil)
             return

@@ -116,6 +116,22 @@ public struct TrackerState: Codable, Sendable {
         !deletions.isEmpty || entries.contains { $0.sync != .synced }
     }
 
+    /// Списания, которые ещё не дошли до YouTrack: новые и изменённые.
+    public var pendingEntries: [LogEntry] {
+        entries.filter { $0.sync != .synced }
+    }
+
+    /// Связи нет: записи очереди без пояснения получают `message`. Возвращает их — о них пользователь ещё не знает.
+    /// Записи, о которых уже сказали (или с другой ошибкой), не трогаются: повторные попытки идут молча.
+    public mutating func markWaiting(message: String) -> [LogEntry] {
+        var marked: [LogEntry] = []
+        for index in entries.indices where entries[index].sync != .synced && entries[index].lastError == nil {
+            entries[index].lastError = message
+            marked.append(entries[index])
+        }
+        return marked
+    }
+
     // MARK: - План и кэш
 
     public mutating func remember(_ list: [Issue]) {

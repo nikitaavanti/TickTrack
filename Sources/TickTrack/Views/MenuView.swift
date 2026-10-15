@@ -33,6 +33,7 @@ struct MenuView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             header
+            linkStatus
             Divider().padding(.vertical, 4)
             planSection
             Divider().padding(.vertical, 4)
@@ -98,6 +99,44 @@ struct MenuView: View {
                 startButton
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
+        }
+    }
+
+    /// Нет связи с YouTrack: видно всё время, пока её нет, и с очередью, и без неё.
+    @ViewBuilder private var linkStatus: some View {
+        if let problem = model.link.problem {
+            HStack(spacing: 8) {
+                Image(systemName: problem == .noNetwork ? "wifi.slash" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.red)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 1) {
+                    (problem == .tokenRejected ? Text("YouTrack не принял токен") : Text("Нет связи с YouTrack"))
+                        .font(.system(size: 12.5, weight: .semibold))
+                    linkDetails(problem).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                if problem == .tokenRejected {
+                    Button("Настройки") { run { model.openSettings() } }
+                } else {
+                    Button(model.linkRetrying ? "Проверяем…" : "Повторить", action: model.retryLink)
+                        .disabled(model.linkRetrying)
+                }
+            }
+            .controlSize(.small)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+        }
+    }
+
+    private func linkDetails(_ problem: LinkProblem) -> Text {
+        if let pending = model.pendingSummary {
+            return Text("\(pending.phrase) \(pending.verb("ждёт", "ждут")) отправки · \(Fmt.hm(pending.minutes))")
+        }
+        return switch problem {
+        case .noNetwork: Text("Mac не подключён к сети. Поиск — среди известных задач")
+        case .notResponding: Text("YouTrack не отвечает. Поиск — среди известных задач")
+        case .tokenRejected: Text("Укажите новый токен в настройках")
         }
     }
 

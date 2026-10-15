@@ -23,8 +23,12 @@ public enum YouTrackError: LocalizedError, Sendable, Equatable {
 
     /// Нет связи: запись остаётся в очереди и уйдёт позже.
     public var isConnectivity: Bool {
-        if case .network = self { return true }
-        return false
+        switch self {
+        case .network: true
+        // Ответил прокси или балансировщик перед YouTrack, а сам YouTrack недоступен.
+        case .server(let status, _): [502, 503, 504].contains(status)
+        default: false
+        }
     }
 
     public var errorDescription: String? {

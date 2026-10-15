@@ -127,7 +127,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     private func refreshStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = StatusIcon.image(for: model.indicator)
+        button.image = StatusIcon.image(for: model.indicator, linkDown: model.link.problem != nil)
         button.title = model.menuBarTitle.map { " " + $0 } ?? ""
         button.toolTip = model.statusToolTip
     }
@@ -137,6 +137,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
             _ = model.menuBarTitle
             _ = model.statusToolTip
             _ = model.indicator
+            _ = model.link.problem
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.refreshStatusItem()
@@ -147,7 +148,8 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 }
 
 /// Кот из `Support/MenuBar` (в ресурсах приложения): спит — учёт не идёт, щурится — учёт остановлен посреди дня, смотрит — учёт идёт.
-/// Рядом цветная точка: зелёная — учёт идёт, жёлтая — учёт остановлен. Когда учёт не идёт (день не начат или задача не выбрана), точки нет. Без ресурсов (`swift run`) вместо кота часы.
+/// Рядом цветная точка: зелёная — учёт идёт, жёлтая — учёт остановлен. Когда учёт не идёт (день не начат или задача не выбрана), точки нет.
+/// Нет связи с YouTrack — точка красная при любом коте: учёт без связи продолжается, поэтому кот по-прежнему показывает учёт. Без ресурсов (`swift run`) вместо кота часы.
 enum StatusIcon {
     private static let cats: [Indicator: NSImage] = {
         let names: [Indicator: String] = [.idle: "CatSleeping", .paused: "CatPaused", .running: "CatActive"]
@@ -155,11 +157,13 @@ enum StatusIcon {
         return names.compactMapValues { Bundle.main.image(forResource: $0) }
     }()
 
-    static func image(for indicator: Indicator) -> NSImage {
-        let dotColor: NSColor? = switch indicator {
-        case .running: .systemGreen
-        case .paused: .systemYellow
-        case .idle: nil
+    static func image(for indicator: Indicator, linkDown: Bool = false) -> NSImage {
+        let dotColor: NSColor? = if linkDown { .systemRed } else {
+            switch indicator {
+            case .running: .systemGreen
+            case .paused: .systemYellow
+            case .idle: nil
+            }
         }
         let cat = cats[indicator]
         // Кот 28×22, точка — в его пустом правом нижнем углу, под «Z» спящего кота.

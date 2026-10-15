@@ -266,6 +266,19 @@ struct LogView: View {
                 Text("Ещё \(model.state.drafts.count) ждут решения в уведомлениях справа вверху.")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            if model.link.isFailing, let pending = model.pendingSummary {
+                Label {
+                    if quitting {
+                        Text("Нет связи с YouTrack: \(pending.phrase) (\(Fmt.hm(pending.minutes))) \(pending.verb("не отправлено", "не отправлены")). \(pending.verb("Оно сохранено и уйдёт", "Они сохранены и уйдут")) при следующем запуске TickTrack.")
+                    } else {
+                        Text("Нет связи с YouTrack: \(pending.phrase) (\(Fmt.hm(pending.minutes))) \(pending.verb("ждёт", "ждут")) отправки. \(pending.verb("Оно сохранено и уйдёт", "Они сохранены и уйдут")), когда связь появится.")
+                    }
+                } icon: {
+                    Image(systemName: "wifi.slash").foregroundStyle(.red)
+                }
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("Итого списано").foregroundStyle(.secondary)
                 Text(verbatim: Fmt.hm(model.totalToday)).font(.system(size: 24, weight: .semibold).monospacedDigit())

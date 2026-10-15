@@ -28,7 +28,7 @@ extension AppModel {
             }
             // Выход откладываем до ответа: окно-вопрос не модальное. Модальное окно, открытое изнутри
             // нажатия на кнопку SwiftUI («Завершить TickTrack» в меню), не получает нажатий своих кнопок.
-            askQuit(details: details)
+            askQuit(details: details, note: unsentNote)
             return .terminateCancel
         }
     }
@@ -100,7 +100,13 @@ extension AppModel {
         return event.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) != nil
     }
 
-    private func askQuit(details: LocalizedStringKey) {
+    /// Связи с YouTrack нет, а в очереди списания: сказать, что они не пропадут.
+    var unsentNote: LocalizedStringKey? {
+        guard link.isFailing, let pending = pendingSummary else { return nil }
+        return "\(pending.phrase) (\(Fmt.hm(pending.minutes))) \(pending.verb("не отправлено", "не отправлены")) в\u{00A0}YouTrack: нет связи. \(pending.verb("Оно сохранено и уйдёт", "Они сохранены и уйдут")) при следующем запуске TickTrack."
+    }
+
+    private func askQuit(details: LocalizedStringKey, note: LocalizedStringKey?) {
         closeMenu()
         NSApp.activate()
         // Повторный ⌘Q, пока окно открыто, просто поднимает его.
@@ -108,7 +114,7 @@ extension AppModel {
             quitWindow.makeKeyAndOrderFront(nil)
             return
         }
-        let controller = NSHostingController(rootView: QuitDialogView(details: details) { [weak self] choice in
+        let controller = NSHostingController(rootView: QuitDialogView(details: details, note: note) { [weak self] choice in
             self?.quitChosen(choice)
         })
         let window = NSWindow(contentViewController: controller)

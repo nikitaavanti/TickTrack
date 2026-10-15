@@ -337,6 +337,8 @@ struct IdleReturnView: View {
 /// и с котом из «О программе» по центру. Enter — завершить день, Esc — не выходить.
 struct QuitDialogView: View {
     let details: LocalizedStringKey
+    /// Неотправленные списания, когда нет связи с YouTrack.
+    var note: LocalizedStringKey?
     let choose: (QuitChoice) -> Void
 
     var body: some View {
@@ -348,6 +350,13 @@ struct QuitDialogView: View {
             Text(details)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            if let note {
+                Text(note)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             VStack(spacing: 8) {
                 Button { choose(.endDay) } label: { Text("Да, завершить день").frame(maxWidth: .infinity) }
                     .buttonStyle(.glassProminent)

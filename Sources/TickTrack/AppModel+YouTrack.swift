@@ -200,18 +200,27 @@ extension AppModel {
     func sync() async {
         guard !isSyncingNow, let api else { return }
         isSyncingNow = true
-        defer { isSyncingNow = false }
+        // Очередь, накопленная без связи, уходит одним сообщением «Связь восстановлена», а не карточкой на каждую запись.
+        let quiet = link.problem != nil || recoveredFrom != nil
+        var sent: [LogEntry] = []
+        defer {
+            isSyncingNow = false
+            if recoveredFrom != nil, link.problem == nil { announceRecovery(sent: sent) }
+        }
         markSyncAttempt()
 
         for deletion in state.deletions {
             do {
                 try await api.deleteWorkItem(issueId: deletion.issueId, workItemId: deletion.workItemId)
-                finishDeletion(deletion)
+                finishDeletion(deletion, announce: !quiet)
             } catch YouTrackError.notFound {
-                finishDeletion(deletion)
+                finishDeletion(deletion, announce: !quiet)
             } catch {
                 recordDeletionError(deletion, error)
-                if (error as? YouTrackError)?.isConnectivity == true { return }
+                if Self.stopsQueue(error) {
+                    noteWaiting(error)
+                    return
+                }
             }
         }
 
@@ -224,6 +233,10 @@ extension AppModel {
                         issueId: entry.issueId, minutes: entry.minutes, text: entry.comment, date: date
                     )
                     mutateState { $0.markCreated(entryId: entry.id, workItemId: workItemId, issueId: entry.issueId, revision: entry.revision) }
+                    if quiet {
+                        sent.append(entry)
+                        continue
+                    }
                     // Без комментария не выводим пустые «».
                     var details = "\(entry.issueId) · \(Fmt.hm(entry.minutes))"
                     let comment = entry.comment.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -235,18 +248,26 @@ extension AppModel {
                         issueId: entry.issueId, workItemId: workItemId, minutes: entry.minutes, text: entry.comment, date: date
                     )
                     mutateState { $0.markUpdated(entryId: entry.id, revision: entry.revision) }
+                    if quiet {
+                        sent.append(entry)
+                        continue
+                    }
                     toast("Изменено в YouTrack", "\(entry.issueId) · \(Fmt.hm(entry.minutes))")
                 case .synced:
                     continue
                 }
             } catch {
+                // Связи нет — остальные записи тоже не уйдут. Об этом говорят точка, меню и карточка, а не ошибка на каждую запись.
+                if Self.stopsQueue(error) {
+                    noteWaiting(error)
+                    return
+                }
                 let message = Self.message(for: error, issueId: entry.issueId)
                 let isNew = entry.lastError != message
                 mutateState { $0.setError(entryId: entry.id, message: message) }
                 if isNew {
                     toast("Не отправлено: \(entry.issueId)", message + " Запись ждёт отправки.", isError: true)
                 }
-                if (error as? YouTrackError)?.isConnectivity == true { return }
             }
         }
     }
@@ -262,9 +283,9 @@ extension AppModel {
         }
     }
 
-    private func finishDeletion(_ deletion: PendingDeletion) {
+    private func finishDeletion(_ deletion: PendingDeletion, announce: Bool) {
         mutateState { $0.removeDeletion(id: deletion.id) }
-        if deletion.announce {
+        if announce, deletion.announce {
             toast("Удалено из YouTrack", "\(deletion.issueId) · \(Fmt.hm(deletion.minutes))")
         }
     }

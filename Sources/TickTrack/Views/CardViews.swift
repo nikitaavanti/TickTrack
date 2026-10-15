@@ -7,6 +7,9 @@ struct CardStackView: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
+            if model.showsLinkCard, let problem = model.link.problem {
+                LinkCard(model: model, problem: problem)
+            }
             if let reminder = model.reminder {
                 ReminderCard(model: model, reminder: reminder)
             }
@@ -21,6 +24,7 @@ struct CardStackView: View {
         .frame(width: CardPanelController.width)
         .animation(.easeOut(duration: 0.2), value: model.toasts)
         .animation(.easeOut(duration: 0.2), value: model.state.drafts)
+        .animation(.easeOut(duration: 0.2), value: model.showsLinkCard)
     }
 }
 
@@ -312,6 +316,61 @@ struct ReminderCard: View {
             Text("Вы работаете уже \(reminder.minutes) мин без учёта.")
                 + (reminder.issueId.map { Text(" Начать \($0)?") } ?? Text(""))
         }
+    }
+}
+
+/// Нет связи с YouTrack, а в очереди есть списания: они сохранены и уйдут сами. Карточка не пропадает сама —
+/// её убирает восстановление связи или «Скрыть».
+struct LinkCard: View {
+    let model: AppModel
+    let problem: LinkProblem
+
+    var body: some View {
+        NotificationCard(badge: badge, closeHelp: "Скрыть", onClose: model.hideLinkCard) {
+            VStack(alignment: .leading, spacing: 2) {
+                CardHeader(title: problem == .tokenRejected ? Text("YouTrack не принял токен") : Text("Нет связи с YouTrack")) {
+                    if let since = model.link.failingSince { Text("с \(Fmt.clock(since))") }
+                }
+                message.font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
+            }
+        } actions: {
+            HStack(spacing: 4) {
+                Button(action: model.hideLinkCard) { Text("Скрыть").frame(maxWidth: .infinity) }
+                if problem == .tokenRejected {
+                    Button { model.openSettings() } label: { Text("Открыть настройки").frame(maxWidth: .infinity) }
+                        .buttonStyle(.glassProminent)
+                } else {
+                    Button(action: model.retryLink) {
+                        Text(model.linkRetrying ? "Проверяем…" : "Повторить сейчас").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .disabled(model.linkRetrying)
+                }
+            }
+            .controlSize(.small)
+        }
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+    }
+
+    private var badge: (symbol: String, color: Color) {
+        switch problem {
+        case .noNetwork: ("wifi.slash", .red)
+        case .notResponding: ("exclamationmark", .red)
+        case .tokenRejected: ("key.fill", .red)
+        }
+    }
+
+    private var message: Text {
+        let reason: Text = switch problem {
+        case .noNetwork: Text("Mac не подключён к сети.")
+        case .notResponding: Text("YouTrack не отвечает.")
+        case .tokenRejected: Text("Укажите новый токен в настройках.")
+        }
+        let when = problem == .tokenRejected ? "как только YouTrack примет новый токен" : "когда связь появится"
+        guard let pending = model.pendingSummary else {
+            return reason + Text(" Учёт работает как обычно, изменения сохранены и уйдут в YouTrack, \(when).")
+        }
+        return reason + Text(" Учёт работает как обычно: \(pending.phrase) (\(Fmt.hm(pending.minutes))) \(pending.verb("сохранено и уйдёт", "сохранены и уйдут")) в YouTrack, \(when).")
     }
 }
 

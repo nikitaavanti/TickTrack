@@ -69,6 +69,30 @@ enum DebugSnapshots {
             render(AboutView(), "13-about", folder)
             render(QuitDialogView(details: "Если да — покажем итог дня и\u{00A0}выйдем. Если ещё вернётесь сегодня — день останется открытым, план и\u{00A0}списания сохранятся.") { _ in }, "14-quit", folder)
             render(QuitDialogView(details: "Учёт по\u{00A0}VEG-4472 (1:20) остановится, время уйдёт в\u{00A0}списание. Если ещё вернётесь сегодня — день останется открытым.") { _ in }, "14b-quit-tracking", folder)
+            // Нет связи с YouTrack: два списания ждут отправки.
+            model.mutateState { state in
+                for (id, minutes) in [("ATL-1490", 45), ("ORG-3", 30)] {
+                    let end = Date()
+                    let draft = SegmentDraft(
+                        issueId: id, start: end.addingTimeInterval(-Double(minutes) * 60), end: end,
+                        rawMinutes: minutes, minutes: minutes, suggestedType: .analysis
+                    )
+                    _ = state.commit(draft, comment: "Анализ", type: .analysis)
+                }
+            }
+            var down = LinkWatch()
+            down.record(YouTrackError.network("offline"), networkAvailable: false, at: Date().addingTimeInterval(-300))
+            down.record(YouTrackError.network("offline"), networkAvailable: false, at: Date())
+            model.link = down
+            model.toasts = []
+            render(CardStackView(model: model), "15-offline-card", folder)
+            render(MenuView(model: model), "15b-offline-menu", folder)
+            render(LogView(model: model, quitting: true, close: {}), "15c-offline-log", folder)
+            render(QuitDialogView(details: "Если да — покажем итог дня и\u{00A0}выйдем. Если ещё вернётесь сегодня — день останется открытым, план и\u{00A0}списания сохранятся.", note: model.unsentNote) { _ in }, "15d-offline-quit", folder)
+            var rejected = LinkWatch()
+            rejected.record(YouTrackError.unauthorized, networkAvailable: true, at: Date())
+            model.link = rejected
+            render(CardStackView(model: model), "15e-token-card", folder)
             NSApp.terminate(nil)
         }
         return true
