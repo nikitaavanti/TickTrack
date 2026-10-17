@@ -16,7 +16,7 @@ struct AboutView: View {
     }
 
     private var copyright: String {
-        info["NSHumanReadableCopyright"] as? String ?? "© 2026 Никита Колганов. Все права защищены."
+        info["NSHumanReadableCopyright"] as? String ?? "© 2026 Никита Колганов. Распространяется по лицензии GNU GPL v3."
     }
 
     var body: some View {

@@ -27,6 +27,6 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Никита Колганов. Все права защищены.</string>
+	<string>© 2026 Никита Колганов. Распространяется по лицензии GNU GPL v3.</string>
 </dict>
 </plist>
