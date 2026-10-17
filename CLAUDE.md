@@ -12,7 +12,7 @@
 
 ## Окружение
 
-Сборка и тесты рассчитаны на Command Line Tools без Xcode (Swift 6.2, SDK macOS 26): `xcodebuild` и `xcstringstool` не используются, String Catalog не компилируется (см. `docs/decisions.md`).
+Сборка и тесты рассчитаны на Command Line Tools без Xcode (Swift 6.2, SDK macOS 26): `xcodebuild` и `xcstringstool` не используются, String Catalog не компилируется (см. `docs/ideas.md`, I-7).
 
 ## Устройство
 
