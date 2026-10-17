@@ -16,7 +16,7 @@ struct AboutView: View {
     }
 
     private var copyright: String {
-        info["NSHumanReadableCopyright"] as? String ?? "© 2026 Никита Колганов. Распространяется по лицензии GNU GPL v3."
+        info["NSHumanReadableCopyright"] as? String ?? "© 2026 Никита Колганов."
     }
 
     var body: some View {
@@ -35,7 +35,11 @@ struct AboutView: View {
             }
             .padding(.top, 4)
             VStack(spacing: 8) {
-                Text(verbatim: copyright)
+                // Копирайт, лицензия со ссылкой на текст и отказ от гарантий — «уместные правовые уведомления» GPL v3 (§0, §5d).
+                VStack(spacing: 2) {
+                    Text(verbatim: copyright)
+                    Text("Распространяется по лицензии [GNU\u{00A0}GPL\u{00A0}v3](https://www.gnu.org/licenses/gpl-3.0.html) без\u{00A0}каких-либо гарантий.")
+                }
                 // Оговорка о чужом товарном знаке: приложение не выдаёт себя за продукт JetBrains.
                 // Неразрывные пробелы не дают строке оборваться на «не» или разорвать «JetBrains s.r.o.».
                 Text("YouTrack — зарегистрированный товарный знак JetBrains\u{00A0}s.r.o. TickTrack — независимое приложение, не\u{00A0}связанное с JetBrains\u{00A0}s.r.o. и не\u{00A0}одобренное ею.")
