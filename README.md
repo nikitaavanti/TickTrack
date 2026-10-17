@@ -94,7 +94,7 @@ scripts/test.sh
 - Службу Keychain `TickTrack.YouTrack` в `Sources/TickTrack/System.swift`: под ней хранится токен.
 - Сочетание ⌥⇧T по умолчанию в `Sources/TickTrack/AppSettings.swift`: если запущены обе версии, оно достанется той, что запустилась первой.
 
-Имя, создатель и копирайт: `CFBundleName`, `CFBundleDisplayName` и `NSHumanReadableCopyright` в `Support/Info.plist`, имя и почта — в `Sources/TickTrack/Views/AboutView.swift`. Графика — в разделе выше.
+Имя, создатель и копирайт: `CFBundleName`, `CFBundleDisplayName` и `NSHumanReadableCopyright` в `Support/Info.plist`, имя, почта и ссылка на исходный код (`sourceURL`, её нужно заменить на свой репозиторий) — в `Sources/TickTrack/Views/AboutView.swift`. Графика — в разделе выше.
 
 ## Ветки
 

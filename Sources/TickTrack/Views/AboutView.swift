@@ -5,6 +5,8 @@ import SwiftUI
 /// «О программе TickTrack».
 struct AboutView: View {
     private static let email = "nikita.avanti@gmail.com"
+    /// Исходный код: GPL v3 требует давать его вместе с собранным приложением (§6). В своей сборке — ссылка на свой репозиторий.
+    private static let sourceURL = URL(string: "https://github.com/nikitaavanti/TickTrack")!
 
     private var info: [String: Any] { Bundle.main.infoDictionary ?? [:] }
 
@@ -39,6 +41,9 @@ struct AboutView: View {
                 VStack(spacing: 2) {
                     Text(verbatim: copyright)
                     Text("Распространяется по лицензии [GNU\u{00A0}GPL\u{00A0}v3](https://www.gnu.org/licenses/gpl-3.0.html) без\u{00A0}каких-либо гарантий.")
+                    // Без явного цвета ссылка наследует серый `.secondary` блока и не выглядит ссылкой.
+                    Link("Исходный код на GitHub", destination: Self.sourceURL)
+                        .foregroundStyle(Color(nsColor: .linkColor))
                 }
                 // Оговорка о чужом товарном знаке: приложение не выдаёт себя за продукт JetBrains.
                 // Неразрывные пробелы не дают строке оборваться на «не» или разорвать «JetBrains s.r.o.».
